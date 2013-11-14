@@ -9,16 +9,16 @@ object Settings {
                             hosts: List[String],
                             user: String = "",
                             passwd: String = "",
-                            connection: ConnectionConfig = new ConnectionConfig(),
+                            connection: ConnectionSettings = new ConnectionSettings(),
                             node: NodeConfig = new NodeConfig()
                           )
 
   case class NodeConfig(
     maxMemcachedConnections: Int = 1,
-    memcached: MemcachedConfig = new MemcachedConfig()
+    memcached: MemcachedSettings = new MemcachedSettings()
   )
 
-  case class MemcachedConfig(
+  case class MemcachedSettings(
 
     user: String = "",
 
@@ -30,19 +30,17 @@ object Settings {
 
     authEnabled: Boolean = true,
 
-    connection: ConnectionConfig = new ConnectionConfig()
+    connection: ConnectionSettings = new ConnectionSettings()
   )
 
-  case class ConnectionConfig(
+  case class ConnectionSettings(
     /**
-     * The maximum amount of time that the client will sleep before trying to
-     * reconnect to the Memcached server
+     * The maximum amount of time that the client will sleep before trying to reconnect to the server
      */
     maxReconnectDelayMillis: Int = 16000,
 
     /**
-     * The maximum number of times that the client will try to reconnect to the memcached server
-     * before aborting
+     * The maximum number of times that the client will try to reconnect to the server before aborting
      */
     maxReconnectAttempts: Int = 3
   )

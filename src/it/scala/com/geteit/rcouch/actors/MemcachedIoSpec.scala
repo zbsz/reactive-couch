@@ -6,7 +6,7 @@ import com.thimbleware.jmemcached.{Key, LocalCacheElement, CacheImpl, MemCacheDa
 import java.net.InetSocketAddress
 import akka.actor.{LoggingFSM, Props, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit}
-import com.geteit.rcouch.Settings.MemcachedConfig
+import com.geteit.rcouch.Settings.MemcachedSettings
 import com.geteit.rcouch.memcached.Memcached._
 import com.geteit.rcouch.memcached.Memcached
 import akka.util.ByteString
@@ -45,7 +45,7 @@ class MemcachedIoSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
   feature("Connect to memcached server") {
     scenario("Connect to server and set value") {
-      val memcached = system.actorOf(Props(classOf[MemcachedIoWithLogging], address, MemcachedConfig(authEnabled = false)))
+      val memcached = system.actorOf(Props(classOf[MemcachedIoWithLogging], address, MemcachedSettings(authEnabled = false)))
 
       memcached ! Memcached.Set("key", ByteString("value"), 0, 3600)
       val res = expectMsgClass(classOf[StoreResponse])
@@ -64,7 +64,7 @@ class MemcachedIoSpec(_system: ActorSystem) extends TestKit(_system) with Implic
 
   feature("Connect to Couchbase server") {
     scenario("Connect to server and set value") {
-      val memcached = system.actorOf(Props(classOf[MemcachedIoWithLogging], new InetSocketAddress("localhost", 11210), MemcachedConfig(user = "geteit")))
+      val memcached = system.actorOf(Props(classOf[MemcachedIoWithLogging], new InetSocketAddress("localhost", 11210), MemcachedSettings(user = "geteit")))
 
       memcached ! Memcached.Set("key", ByteString("value"), 0, 3600)
       val res = expectMsgClass(classOf[StoreResponse])
@@ -82,5 +82,5 @@ class MemcachedIoSpec(_system: ActorSystem) extends TestKit(_system) with Implic
   }
 }
 
-private class MemcachedIoWithLogging(address: InetSocketAddress, config: MemcachedConfig)
+private class MemcachedIoWithLogging(address: InetSocketAddress, config: MemcachedSettings)
     extends MemcachedIo(address, null: NodeRef, config) with LoggingFSM[MemcachedIo.State, MemcachedIo.Data]

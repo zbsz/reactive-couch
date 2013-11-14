@@ -1,14 +1,14 @@
 package com.geteit.rcouch.actors
 
 import akka.actor.{ActorRef, ActorLogging, Actor}
-import com.geteit.rcouch.Settings.ConnectionConfig
+import com.geteit.rcouch.Settings.ConnectionSettings
 import java.net.InetSocketAddress
 import akka.io.{IO, Tcp}
 import scala.concurrent.duration._
 
 /**
   */
-private abstract class ConnectionActor(address: InetSocketAddress, config: ConnectionConfig) extends Actor with ActorLogging {
+private abstract class ConnectionActor(address: InetSocketAddress, config: ConnectionSettings) extends Actor with ActorLogging {
 
   import Tcp._
   import context.system

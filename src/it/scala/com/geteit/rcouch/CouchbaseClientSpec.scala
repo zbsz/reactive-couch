@@ -1,8 +1,7 @@
-package com.geteit.rcouch.actors
+package com.geteit.rcouch
 
-import org.scalatest.{BeforeAndAfter, FeatureSpec, Matchers, BeforeAndAfterAll}
+import org.scalatest.{BeforeAndAfter, FeatureSpec, Matchers}
 import com.geteit.rcouch.views.{ViewResponse, Query, View}
-import com.geteit.rcouch.CouchbaseClient
 import com.geteit.rcouch.Settings.ClusterSettings
 import play.api.libs.iteratee.Iteratee
 import com.geteit.rcouch.views.ViewResponse.Row

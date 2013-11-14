@@ -24,7 +24,7 @@ import com.geteit.rcouch.memcached.Memcached.NoOp
 import akka.io.Tcp.Register
 import akka.io.Tcp.Connect
 import akka.io.Tcp.CommandFailed
-import com.geteit.rcouch.Settings.MemcachedConfig
+import com.geteit.rcouch.Settings.MemcachedSettings
 import com.geteit.rcouch.memcached.Memcached.AuthList
 import com.geteit.rcouch.actors.MemcachedIo.{RunningData, CommandData}
 
@@ -77,13 +77,13 @@ object MemcachedIo {
   case object Running extends State
 
 
-  def props(address: InetSocketAddress, node: NodeRef, config: MemcachedConfig) = Props(classOf[MemcachedIo], address, node, config)
+  def props(address: InetSocketAddress, node: NodeRef, config: MemcachedSettings) = Props(classOf[MemcachedIo], address, node, config)
 }
 
 /**
  * Actor responsible for memcached communication to and from a single node using a single connection.
  */
-private class MemcachedIo(val address: InetSocketAddress, val node: NodeRef, val config: MemcachedConfig)
+private class MemcachedIo(val address: InetSocketAddress, val node: NodeRef, val config: MemcachedSettings)
     extends Actor with FSM[MemcachedIo.State, MemcachedIo.Data] with UnhandledFSM with ConnectingFSM
     with MemcachedAuthorizer with MemcachedRunning with MemcachedBackPressure with ActorLogging {
 
@@ -154,7 +154,7 @@ private trait ConnectingFSM {
   import context._
 
   val address: InetSocketAddress
-  val config: MemcachedConfig
+  val config: MemcachedSettings
 
   type OnConnected = PartialFunction[(ActorRef, ConnectingData), State]
   private var onConnected: OnConnected = {
@@ -214,7 +214,7 @@ private trait MemcachedAuthorizer extends FSM[MemcachedIo.State, MemcachedIo.Dat
 
   import MemcachedIo._
 
-  val config: MemcachedConfig
+  val config: MemcachedSettings
 
   when(Authorizing) {
     case Event(AuthListResponse(_, NoError, _), AuthorizingData(_, pipeline, _)) =>
@@ -238,7 +238,7 @@ private trait MemcachedRunning {
 
   import MemcachedIo._
 
-  val config: MemcachedConfig
+  val config: MemcachedSettings
 
   when(Running) {
     case Event(cmd: Command, data @ RunningData(pipeline, queue, cmds)) =>
