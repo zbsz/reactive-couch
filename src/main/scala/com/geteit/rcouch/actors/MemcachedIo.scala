@@ -24,7 +24,7 @@ import com.geteit.rcouch.memcached.Memcached.NoOp
 import akka.io.Tcp.Register
 import akka.io.Tcp.Connect
 import akka.io.Tcp.CommandFailed
-import com.geteit.rcouch.Config.MemcachedConfig
+import com.geteit.rcouch.Settings.MemcachedConfig
 import com.geteit.rcouch.memcached.Memcached.AuthList
 import com.geteit.rcouch.actors.MemcachedIo.{RunningData, CommandData}
 

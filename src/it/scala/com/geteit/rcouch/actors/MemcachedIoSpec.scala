@@ -6,7 +6,7 @@ import com.thimbleware.jmemcached.{Key, LocalCacheElement, CacheImpl, MemCacheDa
 import java.net.InetSocketAddress
 import akka.actor.{LoggingFSM, Props, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit}
-import com.geteit.rcouch.Config.MemcachedConfig
+import com.geteit.rcouch.Settings.MemcachedConfig
 import com.geteit.rcouch.memcached.Memcached._
 import com.geteit.rcouch.memcached.Memcached
 import akka.util.ByteString

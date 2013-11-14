@@ -1,7 +1,7 @@
 package com.geteit.rcouch.actors
 
 import akka.actor.{ActorRef, ActorLogging, Actor}
-import com.geteit.rcouch.Config.ConnectionConfig
+import com.geteit.rcouch.Settings.ConnectionConfig
 import java.net.InetSocketAddress
 import akka.io.{IO, Tcp}
 import scala.concurrent.duration._

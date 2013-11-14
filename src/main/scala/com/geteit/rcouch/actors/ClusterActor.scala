@@ -1,17 +1,17 @@
 package com.geteit.rcouch.actors
 
 import akka.actor._
-import com.geteit.rcouch.Config.ClusterConfig
+import com.geteit.rcouch.Settings.ClusterSettings
 import com.geteit.rcouch.actors.BucketMonitor.{Node, Bucket, Register}
 import com.geteit.rcouch.memcached.{VBucketLocator, Memcached}
 import scala.collection.immutable.Queue
-import com.geteit.rcouch.Config.ClusterConfig
+import com.geteit.rcouch.Settings.ClusterSettings
 import com.geteit.rcouch.actors.BucketMonitor.Bucket
 import com.geteit.rcouch.actors.BucketMonitor.Node
 
 /**
   */
-class ClusterActor(config: ClusterConfig) extends FSM[ClusterActor.State, ClusterActor.Data] with ActorLogging {
+class   ClusterActor(config: ClusterSettings) extends FSM[ClusterActor.State, ClusterActor.Data] with ActorLogging {
 
   import ClusterActor._
 
@@ -43,6 +43,9 @@ class ClusterActor(config: ClusterConfig) extends FSM[ClusterActor.State, Cluste
     case Event(c: Memcached.KeyCommand, _) =>
       NodesManager.primary(c.key).forward(c) // XXX: should we rotate to replicas?
       stay()
+    case Event(c: ViewActor.Command, _) =>
+      NodesManager.roundRobin.forward(c)
+      stay()
   }
 
   onTransition {
@@ -60,6 +63,7 @@ class ClusterActor(config: ClusterConfig) extends FSM[ClusterActor.State, Cluste
     var nodesMap = Map[String, NodeRef]()
     var locator: VBucketLocator = _
     var initialized = false
+    var rrIndex = 0
 
     def update(b: Bucket): Unit = {
       locator = new VBucketLocator(b.vBucketServerMap)
@@ -79,6 +83,11 @@ class ClusterActor(config: ClusterConfig) extends FSM[ClusterActor.State, Cluste
     }
     
     def primary(key: String) = nodesMap(locator(key).primary)
+    
+    def roundRobin = {
+      rrIndex = (rrIndex + 1) % nodes.length
+      nodes(rrIndex)
+    }
   }
 }
 
@@ -92,5 +101,5 @@ object ClusterActor {
   sealed trait Data
   case class InitData(queue: Queue[(ActorRef, Any)]) extends Data
 
-  def props(c: ClusterConfig) = Props(classOf[ClusterActor], c)
+  def props(c: ClusterSettings) = Props(classOf[ClusterActor], c)
 }

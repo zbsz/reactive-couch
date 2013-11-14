@@ -4,8 +4,10 @@ import akka.testkit.{ImplicitSender, TestKit}
 import akka.actor.ActorSystem
 import org.scalatest.{Matchers, FeatureSpecLike, BeforeAndAfterAll}
 import spray.http.Uri
-import concurrent.duration._
 import com.geteit.rcouch.views.{ViewResponse, Document, View}
+import scala.concurrent.Await
+import scala.concurrent.duration._
+import akka.pattern._
 
 /**
   */
@@ -34,6 +36,8 @@ class ViewActorSpec(_system: ActorSystem) extends TestKit(_system) with Implicit
         expectMsgClass(classOf[ViewResponse.Row[_]])
       }
       expectMsgClass(classOf[ViewResponse.End])
+
+      Await.result(gracefulStop(actor, 5.seconds), 6.seconds)
     }
 
     scenario("Try to query non existent view") {
@@ -42,6 +46,8 @@ class ViewActorSpec(_system: ActorSystem) extends TestKit(_system) with Implicit
       actor ! ViewActor.QueryCommand(View("non_existent_view", "geteit", "users"))
 
       expectMsgClass(classOf[ViewResponse.Error])
+
+      Await.result(gracefulStop(actor, 5.seconds), 6.seconds)
     }
   }
 }

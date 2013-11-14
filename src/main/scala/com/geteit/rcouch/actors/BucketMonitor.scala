@@ -13,7 +13,7 @@ import spray.http.HttpRequest
 import scala.util.Failure
 import scala.Some
 import spray.http.HttpResponse
-import com.geteit.rcouch.Config.ClusterConfig
+import com.geteit.rcouch.Settings.ClusterSettings
 import scala.util.Success
 import akka.event.Logging
 import akka.io.IO
@@ -22,7 +22,7 @@ import spray.http.HttpHeaders.RawHeader
 
 /**
   */
-class BucketMonitor(config: ClusterConfig)
+class BucketMonitor(config: ClusterSettings)
     extends FSM[State, Data] with ActorLogging {
 
   import BucketMonitor._
@@ -95,7 +95,7 @@ object BucketMonitor {
 
   val ClientSpecVer = "1.0"
 
-  def apply(config: ClusterConfig) = Props[BucketMonitor](new BucketMonitor(config))
+  def apply(config: ClusterSettings) = Props[BucketMonitor](new BucketMonitor(config))
 
   sealed trait Command
   case object Register extends Command

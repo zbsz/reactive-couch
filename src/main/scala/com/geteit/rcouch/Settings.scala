@@ -2,9 +2,9 @@ package com.geteit.rcouch
 
 /**
   */
-object Config {
+object Settings {
 
-  case class ClusterConfig(
+  case class ClusterSettings(
                             bucketName: String,
                             hosts: List[String],
                             user: String = "",

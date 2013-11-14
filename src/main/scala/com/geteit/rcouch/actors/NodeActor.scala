@@ -1,7 +1,7 @@
 package com.geteit.rcouch.actors
 
 import akka.actor.{Props, Actor, ActorLogging}
-import com.geteit.rcouch.Config.NodeConfig
+import com.geteit.rcouch.Settings.NodeConfig
 import java.net.InetSocketAddress
 import com.geteit.rcouch.actors.BucketMonitor.Node
 import com.geteit.rcouch.memcached.Memcached

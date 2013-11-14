@@ -2,15 +2,11 @@ package com.geteit.rcouch.views
 
 import akka.io._
 import spray.http.{HttpCharsets, HttpData}
-import java.io.{PipedInputStream, InputStreamReader, PipedOutputStream}
-import com.google.gson.stream.JsonReader
-import com.google.gson.{JsonStreamParser, JsonElement}
-import com.geteit.rcouch.views.Query.{ArrayKey, BooleanKey, StringKey, Key}
+import com.geteit.rcouch.views.Query.{BooleanKey, StringKey, Key}
 import org.parboiled.scala._
 import spray.json._
-import org.parboiled.{MatchHandler, MatcherContext, Context}
-import org.parboiled.errors.{ParseError, ErrorUtils, ParsingException}
-import scala.util.parsing.combinator.JavaTokenParsers
+import org.parboiled.{MatchHandler, MatcherContext}
+import org.parboiled.errors.ParseError
 import org.parboiled.support.DefaultValueStack
 import org.parboiled.buffers.DefaultInputBuffer
 import java.util
@@ -31,7 +27,7 @@ object ViewResponse {
 
   case class End() extends ViewResponse
 
-  case class Error(message: String) extends ViewResponse
+  case class Error(message: String) extends Exception(message) with ViewResponse
 
   trait HasActorSystem extends PipelineContext {
     val system: ActorSystem
