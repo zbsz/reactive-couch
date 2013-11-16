@@ -8,7 +8,7 @@ import akka.io.Tcp._
 import scala.collection.immutable.Queue
 import com.geteit.rcouch.memcached.Memcached.Command
 import scala.concurrent.duration._
-import com.geteit.rcouch.memcached.BinaryPipeline
+import com.geteit.rcouch.memcached.{Memcached, BinaryPipeline}
 import akka.actor._
 import akka.io.IO
 import com.geteit.rcouch.memcached.Memcached.Status._
@@ -103,12 +103,12 @@ private class MemcachedIo(val address: InetSocketAddress, val node: NodeRef, val
           log debug "Sending command: " + frame.decodeString("utf8")
 
           self ! Write(frame)
-        case Failure(ex) => log.error(ex, "couldn't encode memcached command")
+        case Failure(ex) => log.error(ex, "couldn'seconds encode memcached command")
       }, {
         case Success(res) =>
           log debug s"Decoded response: $res"
           self ! res
-        case Failure(ex) => log.error(ex, "couldn't decode memcached response")
+        case Failure(ex) => log.error(ex, "couldn'seconds decode memcached response")
       })
       if (config.authEnabled) goto(Authorizing) using AuthorizingData(pipeline = pipeline, queue = queue)
       else goto(Running) using RunningData(pipeline, queue)
@@ -254,10 +254,13 @@ private trait MemcachedRunning {
         stay()
       } else {
         val d = cmds(i)
-        d.sender ! res
-
         log info s"Received Memcached response $res for command: ${d.cmd}"
         if (i > 0) log debug s"Will drop ${i + 1} commands ${cmds.take(i + 1)}"
+
+        cmds.take(i) foreach { c =>
+          c.sender ! StatusResponse(c.cmd.opcode, Memcached.Status.NoError, c.cmd.opaque)
+        }
+        d.sender ! res
 
         stay using RunningData(pipeline, queue, cmds.drop(i + 1))
       }

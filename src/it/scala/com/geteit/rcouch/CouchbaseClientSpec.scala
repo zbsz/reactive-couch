@@ -24,7 +24,7 @@ class CouchbaseClientSpec extends FeatureSpec with Matchers with BeforeAndAfter 
     client.close()
   }
   
-  feature("ViewActor connection to couchbase server") {
+  feature("CouchbaseClient") {
     scenario("Connect and send view query") {
       val enum = client.query[Any](View("user_by_email", "geteit", "users"), Query())
       val result = enum |>>> Iteratee.fold(Nil: List[Row[Any]])((l, row) => row :: l)

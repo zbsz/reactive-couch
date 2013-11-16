@@ -43,10 +43,3 @@ abstract class AbstractEnumerator[E](implicit ec: ExecutionContext) extends Enum
 
   def onFinished() {}
 }
-
-class CompletableQueueEnumerator[E](q: => CompletableQueue[E])(implicit ec: ExecutionContext) extends AbstractEnumerator[E] {
-  private lazy val queue = q
-
-  override def nextItem(): Future[Option[E]] = queue.poll()
-  override def onFinished(): Unit = queue.close()
-}

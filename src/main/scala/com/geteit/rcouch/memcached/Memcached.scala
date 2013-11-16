@@ -25,7 +25,7 @@ object Memcached {
 
   private val counter = new AtomicInteger(1)
 
-  sealed abstract class Command(private[memcached] val opcode: Byte, val opaque: Int = counter.getAndIncrement)
+  sealed abstract class Command(private[rcouch] val opcode: Byte, val opaque: Int = counter.getAndIncrement)
 
   sealed trait KeyCommand extends Command {
     val key: String

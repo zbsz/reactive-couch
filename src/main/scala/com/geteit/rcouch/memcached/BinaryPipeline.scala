@@ -149,7 +149,7 @@ object MemcachedMessageStage {
 
   import BinaryPipeline._
 
-  private val GetBuilder = { f: Frame => GetResponse(f.opcode, f.key.map(_.decodeString("utf8")), f.value.getOrElse(ByteString.empty), f.extras.get.iterator.getInt, f.cas, f.status, f.opaque) }
+  private val GetBuilder = { f: Frame => GetResponse(f.opcode, f.key.map(_.decodeString("utf8")), f.value.getOrElse(ByteString.empty), f.extras.fold(0)(_.iterator.getInt), f.cas, f.status, f.opaque) }
 
   private val StoreBuilder = { f: Frame => StoreResponse(f.opcode, f.cas, f.status, f.opaque) }
 

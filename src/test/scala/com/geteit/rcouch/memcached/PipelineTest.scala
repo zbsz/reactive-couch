@@ -7,11 +7,10 @@ import org.scalacheck.Prop._
 import akka.util.ByteString
 import com.geteit.rcouch.memcached.BinaryPipeline.{Opcode, Frame, ResponseMagic}
 import scala.concurrent.{Await, Future}
-import com.geteit.rcouch.memcached.Memcached.{AuthList, Command}
+import com.geteit.rcouch.memcached.Memcached.{Status, GetResponse, AuthList, Command}
 import akka.actor.{ActorContext, Actor, ActorSystem}
 import akka.testkit.{TestActorRef, TestActor}
 import com.geteit.rcouch.memcached.BinaryPipeline.Frame
-import com.geteit.rcouch.memcached.Memcached.AuthList
 import scala.Some
 
 /**
@@ -60,6 +59,20 @@ class PipelineTest extends FeatureSpec with Matchers with Checkers {
 
       val f = encode(AuthList())
       f should be(Frame(Opcode.AuthList, None, None, None, 0, 0, f.opaque))
+    }
+
+    scenario("Decode GetResponse NotFound") {
+      implicit val system = ActorSystem("MyActorSystem")
+      val actor = TestActorRef(new Actor { def receive = { case _ ⇒ } })
+      val ctx = new HasActorContext { def getContext: ActorContext = actor.underlyingActor.context }
+
+      val pp = PipelineFactory.buildFunctionTriple(ctx, new MemcachedMessageStage)
+
+      def encode(c: Command) = pp.commands(c)._2.head
+      def decode(f: Frame) = pp.events(f)._1.head
+
+      val frame = Frame(Opcode.Get, None, None, None, Memcached.Status.NotFound, 0, 0)
+      decode(frame) should be(GetResponse(Opcode.Get, None, ByteString(), 0, 0, Status.NotFound, 0))
     }
   }
 
