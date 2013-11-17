@@ -1,6 +1,6 @@
 package com.geteit.rcouch.memcached
 
-import com.geteit.rcouch.actors.BucketMonitor.VBucketMap
+import com.geteit.rcouch.couchbase.Couchbase.VBucketMap
 
 /**
   */
@@ -21,5 +21,7 @@ class VBucketLocator(map: VBucketMap) {
 }
 
 object VBucketLocator {
+
   case class VBucket(primary: String, replicas: Array[String] = Array())
+
 }

@@ -1,9 +1,8 @@
 package com.geteit.rcouch.actors
 
 import org.scalatest._
-import akka.actor.{LoggingFSM, Props, ActorSystem}
+import akka.actor.ActorSystem
 import akka.testkit.{ImplicitSender, TestKit}
-import com.geteit.rcouch.actors.BucketMonitor.{Bucket, Register}
 import com.geteit.rcouch.Settings.ClusterSettings
 import com.geteit.rcouch.memcached.Memcached
 import akka.util.ByteString

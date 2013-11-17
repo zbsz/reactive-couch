@@ -1,21 +1,21 @@
 package com.geteit.rcouch.actors
 
 import akka.actor._
-import com.geteit.rcouch.Settings.ClusterSettings
-import com.geteit.rcouch.actors.BucketMonitor.{Node, Bucket, Register}
+import com.geteit.rcouch.actors.BucketMonitor.Register
 import com.geteit.rcouch.memcached.{VBucketLocator, Memcached}
 import scala.collection.immutable.Queue
 import com.geteit.rcouch.Settings.ClusterSettings
-import com.geteit.rcouch.actors.BucketMonitor.Bucket
-import com.geteit.rcouch.actors.BucketMonitor.Node
+import com.geteit.rcouch.couchbase.Couchbase.{Node, Bucket}
 
 /**
   */
-class   ClusterActor(config: ClusterSettings) extends FSM[ClusterActor.State, ClusterActor.Data] with ActorLogging {
+class ClusterActor(config: ClusterSettings) extends FSM[ClusterActor.State, ClusterActor.Data] with ActorLogging {
 
   import ClusterActor._
 
-  val monitor = context.system.actorOf(BucketMonitor(config))
+  val admin = context.actorOf(AdminActor.props(config))
+  val monitor = context.actorOf(BucketMonitor.props(admin, config))
+  context.watch(admin)
   context.watch(monitor)
 
   override def preStart(): Unit = {

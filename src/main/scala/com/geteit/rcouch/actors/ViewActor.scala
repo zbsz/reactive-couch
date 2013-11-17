@@ -65,7 +65,7 @@ class ViewQueryActor(couchApiBase: Uri) extends Actor with ActorLogging {
     new ViewResponse.PipelineStage()
   )({_ => }, {
     case Success(resp) => origSender ! resp
-    case Failure(ex) => log.error(ex, "couldn'seconds decode view response")
+    case Failure(ex) => log.error(ex, "couldn't decode view response")
   })
 
   def receive: Actor.Receive = {

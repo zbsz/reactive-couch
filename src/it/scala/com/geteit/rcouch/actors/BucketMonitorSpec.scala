@@ -3,11 +3,12 @@ package com.geteit.rcouch.actors
 import org.scalatest._
 import akka.actor.{LoggingFSM, Props, ActorSystem}
 import akka.testkit.{ImplicitSender, TestKit}
-import com.geteit.rcouch.actors.BucketMonitor.{Bucket, Register}
+import com.geteit.rcouch.actors.BucketMonitor.Register
 import com.geteit.rcouch.Settings.ClusterSettings
 import scala.concurrent.duration._
 import akka.pattern.gracefulStop
 import scala.concurrent.Await
+import com.geteit.rcouch.couchbase.Couchbase.Bucket
 
 /**
   */
@@ -15,6 +16,7 @@ class BucketMonitorSpec(_system: ActorSystem) extends TestKit(_system) with Impl
 
   def this() = this(ActorSystem("BucketMonitorSpec"))
 
+  val config = ClusterSettings("geteit", List("http://localhost:8091/"))
 
 
   override protected def beforeAll() {
@@ -29,7 +31,8 @@ class BucketMonitorSpec(_system: ActorSystem) extends TestKit(_system) with Impl
 
   feature("Connect to couchbase server") {
     scenario("Find active node and start monitoring") {
-      val monitor = system.actorOf(Props(classOf[MonitorWithLogging], ClusterSettings("geteit", List("http://localhost:8091/pools"))))
+      val admin = system.actorOf(AdminActor.props(config))
+      val monitor = system.actorOf(BucketMonitor.props(admin, config))
 
       monitor ! Register
 
@@ -40,6 +43,3 @@ class BucketMonitorSpec(_system: ActorSystem) extends TestKit(_system) with Impl
     }
   }
 }
-
-private class MonitorWithLogging(config: ClusterSettings)
-    extends BucketMonitor(config) with LoggingFSM[BucketMonitor.State, BucketMonitor.Data]

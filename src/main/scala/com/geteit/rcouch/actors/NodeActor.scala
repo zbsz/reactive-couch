@@ -3,9 +3,9 @@ package com.geteit.rcouch.actors
 import akka.actor.{Props, Actor, ActorLogging}
 import com.geteit.rcouch.Settings.NodeConfig
 import java.net.InetSocketAddress
-import com.geteit.rcouch.actors.BucketMonitor.Node
 import com.geteit.rcouch.memcached.Memcached
 import com.geteit.rcouch.actors.NodeActor.MemcachedAddress
+import com.geteit.rcouch.couchbase.Couchbase.Node
 
 
 /**
@@ -44,4 +44,5 @@ object NodeActor {
       Some(new InetSocketAddress(host, n.ports.direct))
     }
   }
+
 }

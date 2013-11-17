@@ -1,0 +1,128 @@
+{
+    "storageTotals": {
+        "ram": {
+            "total": 8357724160,
+            "quotaTotal": 1073741824,
+            "quotaUsed": 536870912,
+            "used": 8201580544,
+            "usedByData": 57143152
+        },
+        "hdd": {
+            "total": 54692163584,
+            "quotaTotal": 54692163584,
+            "used": 52504477040,
+            "usedByData": 233851632,
+            "free": 2187686544
+        }
+    },
+    "name": "default",
+    "alerts": [
+        "Approaching full disk warning. Usage of disk \"/\" on node \"127.0.0.1\" is around 96%."
+    ],
+    "alertsSilenceURL": "/controller/resetAlerts?token=1&uuid=718267af916ffead1972af553fe511f1",
+    "nodes": [
+        {
+            "systemStats": {
+                "cpu_utilization_rate": 25.376884422110553,
+                "swap_total": 6814687232,
+                "swap_used": 82014208
+            },
+            "interestingStats": {
+                "couch_docs_actual_disk_size": 110859133,
+                "couch_docs_data_size": 110701568,
+                "couch_views_actual_disk_size": 122992499,
+                "couch_views_data_size": 111426779,
+                "curr_items": 197499,
+                "curr_items_tot": 197499,
+                "mem_used": 57143152,
+                "vb_replica_curr_items": 0
+            },
+            "uptime": "12966",
+            "memoryTotal": 8357724160,
+            "memoryFree": 156143616,
+            "mcdMemoryReserved": 6376,
+            "mcdMemoryAllocated": 6376,
+            "couchApiBase": "http://127.0.0.1:8092/",
+            "clusterMembership": "active",
+            "status": "healthy",
+            "thisNode": true,
+            "hostname": "127.0.0.1:8091",
+            "clusterCompatibility": 131072,
+            "version": "2.0.0-1976-rel-enterprise",
+            "os": "x86_64-unknown-linux-gnu",
+            "ports": {
+                "proxy": 11211,
+                "direct": 11210
+            }
+        }
+    ],
+    "buckets": {
+        "uri": "/pools/default/buckets?v=55449572&uuid=718267af916ffead1972af553fe511f1"
+    },
+    "remoteClusters": {
+        "uri": "/pools/default/remoteClusters?uuid=718267af916ffead1972af553fe511f1",
+        "validateURI": "/pools/default/remoteClusters?just_validate=1"
+    },
+    "controllers": {
+        "addNode": {
+            "uri": "/controller/addNode?uuid=718267af916ffead1972af553fe511f1"
+        },
+        "rebalance": {
+            "uri": "/controller/rebalance?uuid=718267af916ffead1972af553fe511f1"
+        },
+        "failOver": {
+            "uri": "/controller/failOver?uuid=718267af916ffead1972af553fe511f1"
+        },
+        "reAddNode": {
+            "uri": "/controller/reAddNode?uuid=718267af916ffead1972af553fe511f1"
+        },
+        "ejectNode": {
+            "uri": "/controller/ejectNode?uuid=718267af916ffead1972af553fe511f1"
+        },
+        "setAutoCompaction": {
+            "uri": "/controller/setAutoCompaction?uuid=718267af916ffead1972af553fe511f1",
+            "validateURI": "/controller/setAutoCompaction?just_validate=1"
+        },
+        "replication": {
+            "createURI": "/controller/createReplication?uuid=718267af916ffead1972af553fe511f1",
+            "validateURI": "/controller/createReplication?just_validate=1",
+            "replicatorDBURI": "/couchBase/_replicator",
+            "infosURI": "/couchBase/_replicator/_design/_replicator_info/_view/infos?group_level=1"
+        },
+        "setFastWarmup": {
+            "uri": "/controller/setFastWarmup?uuid=718267af916ffead1972af553fe511f1",
+            "validateURI": "/controller/setFastWarmup?just_validate=1"
+        }
+    },
+    "balanced": true,
+    "failoverWarnings": ["hardNodesNeeded"],
+    "rebalanceStatus": "none",
+    "rebalanceProgressUri": "/pools/default/rebalanceProgress",
+    "stopRebalanceUri": "/controller/stopRebalance?uuid=718267af916ffead1972af553fe511f1",
+    "nodeStatusesUri": "/nodeStatuses",
+    "maxBucketCount": 10,
+    "autoCompactionSettings": {
+        "parallelDBAndViewCompaction": false,
+        "databaseFragmentationThreshold": {
+            "percentage": 30,
+            "size": "undefined"
+        },
+        "viewFragmentationThreshold": {
+            "percentage": 30,
+            "size": "undefined"
+        }
+    },
+    "fastWarmupSettings": {
+        "fastWarmupEnabled": true,
+        "minMemoryThreshold": 10,
+        "minItemsThreshold": 10
+    },
+    "tasks": {
+        "uri": "/pools/default/tasks?v=84138772"
+    },
+    "stats": {
+        "uri": "/pools/default/stats"
+    },
+    "counters": {},
+    "stopRebalanceIsSafe": true
+}
