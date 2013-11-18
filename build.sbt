@@ -17,6 +17,8 @@ resolvers ++= Dependencies.resolvers
 
 parallelExecution in Test := false
 
+parallelExecution in IntegrationTest := false
+
 lazy val root = (
     Project("reactive-couch", file("."))
     configs(IntegrationTest)
