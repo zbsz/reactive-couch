@@ -18,6 +18,23 @@ import concurrent.duration._
 import com.geteit.rcouch.couchbase.Couchbase.{Ports, Node, Bucket}
 import akka.event.{LoggingReceive, Logging}
 import spray.json.JsonReader
+import com.geteit.rcouch.couchbase.rest.RestApi._
+import spray.client.pipelining._
+import java.io.{File, FileWriter}
+import com.geteit.rcouch.Settings.ClusterSettings
+import com.geteit.rcouch.couchbase.rest.RestApi.RestFailed
+import spray.http.HttpHeaders.RawHeader
+import scala.util.Failure
+import spray.http.ChunkedResponseStart
+import com.geteit.rcouch.couchbase.rest.RestApi.DeleteBucket
+import com.geteit.rcouch.couchbase.Couchbase.Node
+import spray.http.HttpResponse
+import scala.util.Success
+import spray.http.HttpRequest
+import com.geteit.rcouch.couchbase.rest.RestApi.BucketCreated
+import akka.actor.Terminated
+import com.geteit.rcouch.couchbase.Couchbase.Bucket
+import com.geteit.rcouch.couchbase.Couchbase.Ports
 
 /**
   */
@@ -85,7 +102,33 @@ class AdminActor(config: ClusterSettings) extends Actor with ActorLogging with S
       self ! NodeCheckFailed(streamingUri)
     case GetBucket(name) =>
       sender ! buckets.find(_.name == name).getOrElse(BucketNotFound)
-    case DeleteBucket(name) =>
+    case c: CreateBucket =>
+      val s = sender
+      pipeline(Post(bucketsUri, c)) onComplete {
+        case Success(r) if r.status.isSuccess =>
+          log.debug(s"CreateBucket response: $r")
+          s ! BucketCreated(c.name)
+        case Success(r) =>
+          log.error(s"Create bucket failed, for command: $c; got response: $r")
+          s ! RestFailed(bucketsUri, Success(r))
+        case Failure(e) =>
+          log.error(e, s"Create bucket failed, for command: $c")
+          s ! RestFailed(bucketsUri, Failure(e))
+      }
+    case c @ DeleteBucket(name) =>
+      val s = sender
+      val uri = bucketsUri.withPath(bucketsUri.path / name)
+      pipeline(Delete(uri)) onComplete {
+        case Success(r) if r.status.isSuccess =>
+          log.debug(s"DeleteBucket response: $r")
+          s ! BucketDeleted(name)
+        case Success(r) =>
+          log.error(s"Delete bucket failed, for command: $c; got response: $r")
+          s ! RestFailed(uri, Success(r))
+        case Failure(e) =>
+          log.error(e, s"Delete bucket failed, for command: $c")
+          s ! RestFailed(uri, Failure(e))
+      }
   }
 
 
@@ -116,7 +159,7 @@ class AdminActor(config: ClusterSettings) extends Actor with ActorLogging with S
   }
 
   def configNodes = config.hosts.map(Uri(_)).map { uri =>
-    Node("", s"${uri.authority.host}:${uri.authority.port}", "", Ports(0, 0))
+    Node(None, s"${uri.authority.host}:${uri.authority.port}", "", Ports(0, 0))
   }
 }
 
@@ -126,10 +169,9 @@ object AdminActor {
   case class StartMonitoring(streamingUri: Uri) extends Command
   case class NodeCheckFailed(uri: Uri) extends Command
   case class GetBucket(name: String) extends Command
-  case class CreateBucket(name: String) extends Command
-  case class DeleteBucket(name: String) extends Command
 
-  case object BucketNotFound extends Command
+  sealed trait Response
+  case object BucketNotFound extends Response
 
   case class PoolUri(name: String, uri: String, streamingUri: String)
   case class BucketsUri(uri: String)

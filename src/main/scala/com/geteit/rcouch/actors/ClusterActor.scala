@@ -67,7 +67,7 @@ class ClusterActor(config: ClusterSettings) extends FSM[ClusterActor.State, Clus
 
     def update(b: Bucket): Unit = {
       locator = new VBucketLocator(b.vBucketServerMap)
-      val map = b.nodes.map { n =>
+      val map = b.nodes.filter(_.healthy).map { n =>
         val host = n.hostname.substring(0, n.hostname.indexOf(':'))
           host -> nodesMap.getOrElse(host, createNodeActor(b, n))
       }.toMap

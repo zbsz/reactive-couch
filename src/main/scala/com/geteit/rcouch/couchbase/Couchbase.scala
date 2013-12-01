@@ -4,13 +4,17 @@ import spray.json.{JsonReader, JsonParser, DefaultJsonProtocol}
 import akka.event.Logging
 import spray.http._
 import akka.io.{SymmetricPipePair, HasActorContext, SymmetricPipelineStage}
+import java.io.{File, FileWriter}
 
 /**
   */
 object Couchbase {
 
   case class Ports(proxy: Int, direct: Int)
-  case class Node(couchApiBase: String, hostname: String, status: String, ports: Ports)
+  case class Node(couchApiBase: Option[String], hostname: String, status: String, ports: Ports) {
+    def healthy = status == "healthy"
+    def warmup = status == "warmup"
+  }
   case class VBucketMap(hashAlgorithm: String, numReplicas: Int, serverList: Array[String], vBucketMap: Array[Array[Int]])
   case class Bucket(name: String, uri: String, streamingUri: String, saslPasswd: Option[String], nodes: Array[Node], vBucketServerMap: VBucketMap)
 
@@ -44,6 +48,14 @@ class ChunkedParserPipelineStage[A <: AnyRef : JsonReader] extends SymmetricPipe
       case _ => Nil
     }
 
-    private def parse(json: String): A = implicitly[JsonReader[A]].read(JsonParser(json))
+    private def parse(json: String): A = {
+      try {
+        implicitly[JsonReader[A]].read(JsonParser(json))
+      } catch {
+        case e: Exception =>
+          log.error(e, s"error while parsing chunk: $json")
+          throw e
+      }
+    }
   }
 }

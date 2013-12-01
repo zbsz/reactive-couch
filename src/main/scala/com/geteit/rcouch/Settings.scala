@@ -1,5 +1,7 @@
 package com.geteit.rcouch
 
+import com.typesafe.config.{Config, ConfigFactory}
+
 /**
   */
 object Settings {
@@ -12,6 +14,17 @@ object Settings {
                             connection: ConnectionSettings = new ConnectionSettings(),
                             node: NodeConfig = new NodeConfig()
                           )
+
+  object ClusterSettings {
+    import scala.collection.JavaConversions._
+
+    def apply(): ClusterSettings = apply(ConfigFactory.load().getConfig("rcouch"))
+
+    def apply(config: Config): ClusterSettings = {
+      new ClusterSettings(config.getString("bucket"), config.getStringList("hosts").toList, config.getString("user"), config.getString("passwd"))
+    }
+  }
+
 
   case class NodeConfig(
     maxMemcachedConnections: Int = 1,

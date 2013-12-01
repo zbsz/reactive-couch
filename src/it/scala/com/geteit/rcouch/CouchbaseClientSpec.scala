@@ -13,7 +13,7 @@ import ExecutionContext.Implicits.global
   */
 class CouchbaseClientSpec extends FeatureSpec with Matchers with BeforeAndAfter {
 
-  val settings = new ClusterSettings("geteit", List("http://localhost:8091/pools"))
+  val settings = ClusterSettings()
   var client: CouchbaseClient = _
   
   before {

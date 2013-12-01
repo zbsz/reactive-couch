@@ -14,7 +14,7 @@ import scala.Some
   */
 class MemcachedClientSpec extends FeatureSpec with Matchers with BeforeAndAfterAll with FutureMatcher {
 
-  val settings = new ClusterSettings("geteit", List("http://localhost:8091/pools"))
+  val settings = ClusterSettings()
   var client: CouchbaseClient = _
 
   override protected def beforeAll(): Unit = {

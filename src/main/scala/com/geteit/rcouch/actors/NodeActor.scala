@@ -20,7 +20,7 @@ class NodeActor(node: Node, config: NodeConfig) extends Actor with ActorLogging 
     system.actorOf(MemcachedIo.props(address, self, config.memcached))
   }
 
-  val view = system.actorOf(ViewActor.props(node.couchApiBase))
+  val view = system.actorOf(ViewActor.props(node.couchApiBase.get))
 
   override def preStart(): Unit = {
     super.preStart()
