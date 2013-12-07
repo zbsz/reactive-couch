@@ -18,8 +18,17 @@ object DesignDocument {
   def ddocs(bucket: String, r: HttpResponse): List[DesignDocument] =
     JsonProtocol.ddocs(bucket, r.entity.asString(HttpCharsets.`UTF-8`))
 
-  def apply(bucket: String, r: HttpResponse): DesignDocument =
-    JsonProtocol.doc(bucket, JsonParser(r.entity.asString(HttpCharsets.`UTF-8`)).asJsObject)
+  def apply(bucket: String, r: HttpResponse): DesignDocument = {
+    import JsonProtocol._
+
+    val meta = r.headers.find(_.name == "X-Couchbase-Meta").get.value
+
+    val JsString(id) = JsonParser(meta).asJsObject.fields("id")
+    val views = JsonParser(r.entity.asString(HttpCharsets.`UTF-8`)).asJsObject
+                  .fields("views").asJsObject.fields.map(p => p._1 -> p._2.convertTo[ViewDef])
+
+    DesignDocument(id.substring("_design/".length), bucket, views)
+  }
 
   sealed trait JsFunction {
     val js: String
@@ -60,7 +69,7 @@ object DesignDocument {
       def write(obj: MapFunction): JsValue = JsString(obj.js)
       def read(json: JsValue): MapFunction = MapFunction(json.asInstanceOf[JsString].value)
     }
-    implicit val ViewDefFormat = jsonFormat2(ViewDef)
+    implicit val ViewDefFormat: RootJsonFormat[ViewDef] = jsonFormat2(ViewDef)
 
     implicit object DocumentFormat extends RootJsonFormat[DesignDocument] {
       def write(obj: DesignDocument): JsValue = JsObject(Map("views" -> obj.views.toJson))

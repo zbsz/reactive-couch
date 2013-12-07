@@ -88,7 +88,7 @@ class ViewActorSpec(_system: ActorSystem) extends TestKit(_system) with Implicit
       actor ! ViewActor.SaveDesignDoc(doc)
       expectMsg(Saved)
 
-      actor ! ViewActor.GetDesignDoc("text_doc")
+      actor ! ViewActor.GetDesignDoc("test_doc")
       expectMsg(doc)
     }
   }
