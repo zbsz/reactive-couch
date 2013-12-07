@@ -16,32 +16,94 @@ import scala.util.Failure
 import spray.http.ChunkedResponseStart
 import com.geteit.rcouch.actors.ViewActor.QueryCommand
 import com.geteit.rcouch.views.ViewResponse.HasActorSystem
+import scala.concurrent.Future
+import spray.client.pipelining._
+import spray.http.HttpRequest
+import scala.util.Failure
+import spray.http.ChunkedResponseStart
+import spray.http.HttpResponse
+import spray.can.Http.HostConnectorInfo
+import com.geteit.rcouch.views.View
+import scala.util.Success
+import com.geteit.rcouch.actors.ViewActor.QueryCommand
+import com.geteit.rcouch.couchbase.rest.RestApi.RestFailed
+import akka.util.Timeout
 
 /**
   */
-class ViewActor(couchApiBase: Uri) extends Actor with ActorLogging {
+class ViewActor(couchApiBase: Uri, user: String = "", passwd: String = "") extends Actor with Stash with ActorLogging {
 
   import ViewActor._
-  import context._
+  import context.dispatcher
 
-  private val a = couchApiBase.authority
-  private var queue = Queue[(ActorRef, Command)]()
+  private val authority = couchApiBase.authority
+  private val bucket = couchApiBase.path.toString()
 
-  IO(Http) ! Http.HostConnectorSetup(a.host.address, a.port)
+  IO(Http)(context.system) ! Http.HostConnectorSetup(authority.host.address, authority.port)
 
   def receive: Actor.Receive = {
-    case c: QueryCommand =>
-      queue = queue.enqueue((sender, c))
+    case _: Command => stash()
     case HostConnectorInfo(connector, _) =>
       context.become(connected(connector))
-      queue foreach (p => self.tell(p._2, p._1))
+      unstashAll()
   }
 
   def connected(connector: ActorRef): Actor.Receive = {
-    case c: QueryCommand =>
-      context.actorOf(Props(classOf[ViewQueryActor], couchApiBase)).forward(c)
-    case m =>
-      log.warning("Got unexpected message: {}", m)
+
+    import DesignDocument.JsonProtocol._
+    import spray.httpx.SprayJsonSupport._
+    import concurrent.duration._
+
+    implicit val timeout = 15.seconds: Timeout
+
+    val pipeline: HttpRequest => Future[HttpResponse] =
+      if (user == "") sendReceive(connector) else addCredentials(BasicHttpCredentials(user, passwd)) ~> sendReceive(connector)
+
+    {
+      case c: QueryCommand =>
+        context.actorOf(Props(classOf[ViewQueryActor], couchApiBase, connector)).forward(c)
+      case c @ GetDesignDoc(doc) =>
+        val s = sender
+        pipeline(Get(s"$bucket/_design/$doc")) onComplete {
+          case Success(r) if r.status.isSuccess =>
+            log.debug(s"GetDesignDoc response: $r")
+            s ! DesignDocument(bucket, r)
+          case Success(r) =>
+            log.error(s"GetDesignDoc failed, for command: $c; got response: $r")
+            s ! RestFailed(Uri(s"$bucket/_design/$doc"), Success(r))
+          case Failure(e) =>
+            log.error(e, s"GetDesignDoc failed, for command: $c")
+            s ! RestFailed(Uri(s"$bucket/_design/$doc"), Failure(e))
+        }
+      case c @ SaveDesignDoc(doc) =>
+        val s = sender
+        pipeline(Put(s"$bucket/_design/${doc.name}", doc)) onComplete {
+          case Success(r) if r.status.isSuccess =>
+            log.debug(s"SaveDesignDoc response: $r")
+            s ! Saved
+          case Success(r) =>
+            log.error(s"SaveDesignDoc failed, for command: $c; got response: $r")
+            s ! RestFailed(Uri(s"$bucket/_design/${doc.name}"), Success(r))
+          case Failure(e) =>
+            log.error(e, s"SaveDesignDoc failed, for command: $c")
+            s ! RestFailed(Uri(s"$bucket/_design/${doc.name}"), Failure(e))
+        }
+      case c @ DeleteDesignDoc(doc) =>
+        val s = sender
+        pipeline(Delete(s"$bucket/_design/$doc")) onComplete {
+          case Success(r) if r.status.isSuccess =>
+            log.debug(s"DeleteDesignDoc response: $r")
+            s ! Deleted
+          case Success(r) =>
+            log.error(s"DeleteDesignDoc failed, for command: $c; got response: $r")
+            s ! RestFailed(Uri(s"$bucket/_design/$doc"), Success(r))
+          case Failure(e) =>
+            log.error(e, s"DeleteDesignDoc failed, for command: $c")
+            s ! RestFailed(Uri(s"$bucket/_design/$doc"), Failure(e))
+        }
+      case m =>
+        log.warning("Got unexpected message: {}", m)
+    }
   }
 
 }
@@ -49,13 +111,21 @@ class ViewActor(couchApiBase: Uri) extends Actor with ActorLogging {
 object ViewActor {
 
   sealed trait Command
-
   case class QueryCommand(v: View, q: Query = Query()) extends Command
 
-  def props(couchApiBase: Uri): Props = Props(classOf[ViewActor], couchApiBase)
+  sealed trait DesignCommand extends Command
+  case class GetDesignDoc(name: String) extends DesignCommand
+  case class DeleteDesignDoc(name: String) extends DesignCommand
+  case class SaveDesignDoc(doc: DesignDocument) extends DesignCommand
+
+  sealed trait Response
+  case object Deleted extends Response
+  case object Saved extends Response
+
+  def props(couchApiBase: Uri, user: String = "", passwd: String = ""): Props = Props(classOf[ViewActor], couchApiBase, user, passwd)
 }
 
-class ViewQueryActor(couchApiBase: Uri) extends Actor with ActorLogging {
+class ViewQueryActor(couchApiBase: Uri, connector: ActorRef) extends Actor with ActorLogging {
 
   import context._
 
@@ -71,7 +141,7 @@ class ViewQueryActor(couchApiBase: Uri) extends Actor with ActorLogging {
   def receive: Actor.Receive = {
     case QueryCommand(v, q) =>
       origSender = sender
-      IO(Http) ! HttpRequest(HttpMethods.GET, couchApiBase.withPath(v.path).withQuery(q.httpQuery))
+      connector ! HttpRequest(HttpMethods.GET, couchApiBase.withPath(v.path).withQuery(q.httpQuery))
     case ChunkedResponseStart(response) =>
       log.debug("Got chunked response start:\nresponse: {}\n\nheaders: {}\n\nentity: {}", response, response.headers, response.entity)
     case MessageChunk(data, _) =>

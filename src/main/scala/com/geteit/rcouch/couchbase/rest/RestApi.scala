@@ -41,9 +41,8 @@ object RestApi {
 
 
   sealed trait RestCommand
-
+  case class GetDesignDocs(bucket: String) extends RestCommand
   case class DeleteBucket(name: String) extends RestCommand
-
   case class CreateBucket(name: String,
                           ramQuota: RamQuota,
                           saslPassword: Option[String] = None,

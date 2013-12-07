@@ -3,24 +3,14 @@ package com.geteit.rcouch.actors
 import akka.actor._
 import spray.http._
 import scala.concurrent.Future
-import spray.client.pipelining._
 import com.geteit.rcouch.couchbase.{Couchbase, ChunkedParserPipelineStage}
 import akka.io.{HasActorContext, PipelineFactory, IO}
 import spray.can.Http
-import spray.http.HttpRequest
-import com.geteit.rcouch.Settings.ClusterSettings
-import spray.http.HttpHeaders.RawHeader
-import scala.util.Failure
-import spray.http.ChunkedResponseStart
-import spray.http.HttpResponse
-import scala.util.Success
 import concurrent.duration._
-import com.geteit.rcouch.couchbase.Couchbase.{Ports, Node, Bucket}
 import akka.event.{LoggingReceive, Logging}
 import spray.json.JsonReader
 import com.geteit.rcouch.couchbase.rest.RestApi._
 import spray.client.pipelining._
-import java.io.{File, FileWriter}
 import com.geteit.rcouch.Settings.ClusterSettings
 import com.geteit.rcouch.couchbase.rest.RestApi.RestFailed
 import spray.http.HttpHeaders.RawHeader
@@ -35,6 +25,7 @@ import com.geteit.rcouch.couchbase.rest.RestApi.BucketCreated
 import akka.actor.Terminated
 import com.geteit.rcouch.couchbase.Couchbase.Bucket
 import com.geteit.rcouch.couchbase.Couchbase.Ports
+import com.geteit.rcouch.views.DesignDocument
 
 /**
   */
@@ -127,6 +118,20 @@ class AdminActor(config: ClusterSettings) extends Actor with ActorLogging with S
           s ! RestFailed(uri, Success(r))
         case Failure(e) =>
           log.error(e, s"Delete bucket failed, for command: $c")
+          s ! RestFailed(uri, Failure(e))
+      }
+    case c @ GetDesignDocs(bucket) =>
+      val s = sender
+      val uri = bucketsUri.withPath(bucketsUri.path / bucket / "ddocs")
+      pipeline(Get(uri)) onComplete {
+        case Success(r) if r.status.isSuccess =>
+          log.debug(s"GetDesignDocs response: $r")
+          s ! DesignDocument.ddocs(bucket, r)
+        case Success(r) =>
+          log.error(s"GetDesignDocs failed, for command: $c; got response: $r")
+          s ! RestFailed(uri, Success(r))
+        case Failure(e) =>
+          log.error(e, s"GetDesignDocs failed, for command: $c")
           s ! RestFailed(uri, Failure(e))
       }
   }

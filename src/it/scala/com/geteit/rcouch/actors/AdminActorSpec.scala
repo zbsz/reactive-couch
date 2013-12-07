@@ -15,6 +15,7 @@ import com.geteit.rcouch.actors.AdminActor.GetBucket
 import com.geteit.rcouch.couchbase.Couchbase.Bucket
 import scala.Some
 import com.geteit.rcouch.couchbase.rest.RestApi.RamQuota
+import com.geteit.rcouch.views.DesignDocument
 
 /**
   */
@@ -69,6 +70,13 @@ class AdminActorSpec(_system: ActorSystem) extends TestKit(_system) with Implici
       expectMsg(30.seconds, BucketDeleted("test"))
 
       Await.result(gracefulStop(actor, 5.seconds), 6.seconds)
+    }
+
+    scenario("Load design documents") {
+      val actor = system.actorOf(Props(classOf[AdminActor], ClusterSettings()))
+      actor ! GetDesignDocs("geteit")
+      val msg = expectMsgClass(classOf[List[DesignDocument]])
+      info(s"got ${msg.length} design dosc")
     }
   }
 }

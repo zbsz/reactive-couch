@@ -1,7 +1,7 @@
 package com.geteit.rcouch
 
 import org.scalatest.{BeforeAndAfter, FeatureSpec, Matchers}
-import com.geteit.rcouch.views.{ViewResponse, Query, View}
+import com.geteit.rcouch.views.{DesignDocument, ViewResponse, Query, View}
 import com.geteit.rcouch.Settings.ClusterSettings
 import play.api.libs.iteratee.Iteratee
 import com.geteit.rcouch.views.ViewResponse.Row
@@ -26,14 +26,16 @@ class CouchbaseClientSpec extends FeatureSpec with Matchers with BeforeAndAfter 
   
   feature("CouchbaseClient") {
     scenario("Connect and send view query") {
-      val enum = client.query[Any](View("user_by_email", "geteit", "users"), Query())
+      val doc = new DesignDocument("users", "geteit", Map())
+      val enum = client.query[Any](View("user_by_email", doc), Query())
       val result = enum |>>> Iteratee.fold(Nil: List[Row[Any]])((l, row) => row :: l)
 
       info(s"Got result list of len: ${Await.result(result, 10.seconds).length}")
     }
 
     scenario("Try to query non existent view") {
-      val enum = client.query[Any](View("non_existent_view", "geteit", "users"), Query())
+      val doc = new DesignDocument("users", "geteit", Map())
+      val enum = client.query[Any](View("non_existent_view", doc), Query())
       val result = enum |>>> Iteratee.fold(Nil: List[Row[Any]])((l, row) => row :: l)
       
       intercept[ViewResponse.Error] {
