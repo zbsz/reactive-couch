@@ -24,6 +24,8 @@ object Couchbase {
     implicit val VBucketMapFormat = jsonFormat4(VBucketMap)
     implicit val BucketFormat = jsonFormat6(Bucket)
   }
+
+  class CouchbaseException(msg: String, cause: Throwable = null) extends Exception(msg, cause)
 }
 
 class ChunkedParserPipelineStage[A <: AnyRef : JsonReader] extends SymmetricPipelineStage[HasActorContext, A, HttpMessagePart] {

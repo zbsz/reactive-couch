@@ -1,10 +1,16 @@
 package com.geteit.rcouch.couchbase.rest
 
 import spray.httpx.marshalling.Marshaller
-import spray.http.{HttpResponse, Uri, ContentTypes, FormData}
+import spray.http._
 import spray.http.MediaTypes._
 import spray.http.ContentType._
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
+import scala.reflect.ClassTag
+import scala.concurrent.{ExecutionContext, Future}
+import com.geteit.rcouch.couchbase.Couchbase.CouchbaseException
+import spray.http.HttpResponse
+import scala.util.Success
+import scala.util.Failure
 
 /**
   */
@@ -82,4 +88,9 @@ object RestApi {
     }
   }
 
+  def mapRestTo[A](future: Future[Any])(implicit tag: ClassTag[A], ec: ExecutionContext): Future[A] = future.flatMap {
+    case RestFailed(uri, Success(r)) => Future.failed(new CouchbaseException("Rest failed: " + r.entity.asString(HttpCharsets.`UTF-8`)))
+    case RestFailed(uri, Failure(e)) => Future.failed(new CouchbaseException("Rest failed", e))
+    case _ => future.mapTo[A]
+  }
 }

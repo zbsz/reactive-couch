@@ -2,29 +2,28 @@ package com.geteit.rcouch.views
 
 import play.api.libs.iteratee.Enumerator
 import com.geteit.rcouch.actors.ViewActor.QueryCommand
-import com.geteit.rcouch.CouchbaseClient
+import com.geteit.rcouch.{BucketClient, CouchbaseClient}
 import scala.concurrent.{Future, ExecutionContext}
 import scala.collection.mutable
 import akka.actor.{Props, ActorRef, Actor}
 import com.geteit.rcouch.views.InboxActor.Get
 import akka.util.Timeout
+import concurrent.duration._
 
 /**
  * Simple query executor.
  *
  */
-class QueryExecutor(v: View, q: Query) {
+class QueryExecutor(v: View, q: Query)(implicit timeout: Timeout = 15.seconds) {
 
-  def apply[A](c: CouchbaseClient)(implicit ec: ExecutionContext): Enumerator[ViewResponse.Row[A]] = {
+  def apply[A](c: ViewClient)(implicit ec: ExecutionContext): Enumerator[ViewResponse.Row[A]] = {
     // TODO: implement back pressure - suspend reading results from server when buffer gets to big
 
     implicit val system = c.system
     import akka.pattern.ask
-    import concurrent.duration._
-    implicit val timeout = new Timeout(15.seconds)
 
     val inbox = system.actorOf(Props(classOf[InboxActor]))
-    c.cluster.tell(QueryCommand(v, q), inbox)
+    c.actor.tell(QueryCommand(v, q), inbox)
 
     def nextItem: Future[Option[ViewResponse.Row[A]]] = ask(inbox, Get) flatMap {
       case m: ViewResponse.End =>

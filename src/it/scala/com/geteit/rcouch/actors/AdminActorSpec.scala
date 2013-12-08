@@ -22,10 +22,6 @@ import com.geteit.rcouch.views.DesignDocument
 class AdminActorSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with FeatureSpecLike with Matchers with BeforeAndAfterAll {
   def this() = this(ActorSystem("AdminActorSpec"))
 
-  override protected def beforeAll() {
-    super.beforeAll()
-  }
-
   override protected def afterAll(): Unit = {
     super.afterAll()
 
@@ -75,7 +71,7 @@ class AdminActorSpec(_system: ActorSystem) extends TestKit(_system) with Implici
     scenario("Load design documents") {
       val actor = system.actorOf(Props(classOf[AdminActor], ClusterSettings()))
       actor ! GetDesignDocs("geteit")
-      val msg = expectMsgClass(classOf[List[DesignDocument]])
+      val msg = expectMsgClass(10.seconds, classOf[List[DesignDocument]])
       info(s"got ${msg.length} design dosc")
     }
   }

@@ -1,105 +1,76 @@
 package com.geteit.rcouch.actors
 
 import akka.actor._
-import com.geteit.rcouch.actors.BucketMonitor.Register
-import com.geteit.rcouch.memcached.{VBucketLocator, Memcached}
-import scala.collection.immutable.Queue
 import com.geteit.rcouch.Settings.ClusterSettings
-import com.geteit.rcouch.couchbase.Couchbase.{Node, Bucket}
+import akka.event.LoggingReceive
+import scala.collection.mutable
+import akka.pattern._
+import com.geteit.rcouch.couchbase.Couchbase.{CouchbaseException, Bucket}
+import scala.util.{Failure, Success}
+import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.duration._
+import com.geteit.rcouch.actors.AdminActor.BucketNotFound
+import akka.util.Timeout
 
 /**
   */
-class ClusterActor(config: ClusterSettings) extends FSM[ClusterActor.State, ClusterActor.Data] with ActorLogging {
+class ClusterActor(config: ClusterSettings) extends Actor with ActorLogging {
 
   import ClusterActor._
 
+  val buckets = new mutable.HashMap[String, ActorRef]
+
   val admin = context.actorOf(AdminActor.props(config))
-  val monitor = context.actorOf(BucketMonitor.props(admin, config))
   context.watch(admin)
-  context.watch(monitor)
 
-  override def preStart(): Unit = {
-    super.preStart()
+  implicit val timeout = 15.seconds: Timeout
+  implicit val ec: ExecutionContext = context.dispatcher
 
-    monitor ! Register
-  }
+  def receive: Actor.Receive = LoggingReceive {
+    case c: AdminActor.Command => admin.forward(c)
+    case GetBucketActor(bucketName) =>
+      buckets.get(bucketName) match {
+        case Some(bucket) => sender ! bucket
+        case None =>
+          def get(retries: Int = 0, delay: Long = 100): Future[ActorRef] = {
+            admin ? AdminActor.GetBucket(bucketName) flatMap {
+              case b: Bucket =>
+                Future.successful(buckets.getOrElseUpdate(bucketName, context.watch(context.actorOf(BucketActor.props(b, config)))))
+              case BucketNotFound if retries < 5 =>
+                after(delay.milliseconds, context.system.scheduler) { get(retries + 1, delay * 2) }
+              case _ =>
+                Future.failed(new CouchbaseException(s"Couldn't find bucket: $bucketName"))
+            }
+          }
 
-  startWith(Initializing, InitData(Queue()))
-
-  when(Initializing) {
-    case Event(b: Bucket, InitData(queue)) =>
-      NodesManager.update(b)
-      if (NodesManager.initialized) goto(Running)
-      else stay()
-    case Event(msg, InitData(queue)) =>
-      stay using InitData(queue.enqueue((sender, msg)))
-  }
-
-  when(Running) {
-    case Event(b: Bucket, _) =>
-      NodesManager.update(b)
-      if (NodesManager.initialized) stay()
-      else goto(Initializing) using InitData(Queue())
-    case Event(c: Memcached.KeyCommand, _) =>
-      NodesManager.primary(c.key).forward(c) // XXX: should we rotate to replicas?
-      stay()
-    case Event(c: ViewActor.Command, _) =>
-      NodesManager.roundRobin.forward(c)
-      stay()
-  }
-
-  onTransition {
-    case Initializing -> Running =>
-      stateData match {
-        case InitData(queue) => queue foreach (p => self.tell(p._2, p._1))
-        case d => log error s"Unexpected data: $d"
+          val s = sender
+          get() onComplete {
+            case Success(actor) => s ! actor
+            case Failure(e) =>
+              log.error(e, "GetBucketActor failed")
+          }
       }
-  }
-
-  initialize()
-
-  object NodesManager {
-    var nodes = Array[NodeRef]()
-    var nodesMap = Map[String, NodeRef]()
-    var locator: VBucketLocator = _
-    var initialized = false
-    var rrIndex = 0
-
-    def update(b: Bucket): Unit = {
-      locator = new VBucketLocator(b.vBucketServerMap)
-      val map = b.nodes.filter(_.healthy).map { n =>
-        val host = n.hostname.substring(0, n.hostname.indexOf(':'))
-          host -> nodesMap.getOrElse(host, createNodeActor(b, n))
-      }.toMap
-      nodesMap.filterNot(e => map.contains(e._1)).foreach(e => context.stop(e._2))
-      nodesMap = map
-      nodes = map.values.toArray
-      initialized = !nodes.isEmpty && locator.hasVBuckets
-    }
-
-    def createNodeActor(b: Bucket, n: Node) = {
-      val c = config.node.copy(memcached = config.node.memcached.copy(user = b.name, password = b.saslPasswd.getOrElse("")))
-      context.system.actorOf(NodeActor(n, c))
-    }
-    
-    def primary(key: String) = nodesMap(locator(key).primary)
-    
-    def roundRobin = {
-      rrIndex = (rrIndex + 1) % nodes.length
-      nodes(rrIndex)
-    }
+    case Terminated(actor) =>
+      if (actor == admin) {
+        log.error("Admin actor has been terminated, closing")
+        context.stop(self)
+      }
+      buckets.find(_._2 == actor) match {
+        case None =>
+          log.error("Unknown child terminated, will close")
+          context.stop(self)
+        case Some((bucket, _)) =>
+          log.warning(s"BucketActor terminated for: $bucket")
+          buckets.remove(bucket)
+          // XXX: should we restart it ???
+      }
   }
 }
 
 object ClusterActor {
-  type NodeRef = ActorRef
 
-  sealed trait State
-  case object Initializing extends State
-  case object Running extends State
-
-  sealed trait Data
-  case class InitData(queue: Queue[(ActorRef, Any)]) extends Data
+  sealed trait Command
+  case class GetBucketActor(bucketName: String) extends Command
 
   def props(c: ClusterSettings) = Props(classOf[ClusterActor], c)
 }

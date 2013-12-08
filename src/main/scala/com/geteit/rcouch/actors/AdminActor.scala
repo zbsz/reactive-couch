@@ -228,6 +228,8 @@ object AdminActor {
 }
 
 object StreamMonitor {
+  val ClientSpecVer = "1.0"
+
   def props[A <: AnyRef : JsonReader](streamingUri: Uri, parent: ActorRef, user: String, passwd: String) =
     Props(classOf[StreamMonitor[A]], streamingUri, parent, user, passwd, implicitly[JsonReader[A]])
 }
@@ -257,7 +259,7 @@ class StreamMonitor[A <: AnyRef](streamingUri: Uri, parent: ActorRef, user: Stri
   private def headers = {
     val headers = List(
       HttpHeaders.`User-Agent`("reactive-couch vbucket client"),
-      RawHeader("X-memcachekv-Store-Client-Specification-Version", BucketMonitor.ClientSpecVer)
+      RawHeader("X-memcachekv-Store-Client-Specification-Version", StreamMonitor.ClientSpecVer)
     )
     if (user == "") headers
     else HttpHeaders.Authorization(BasicHttpCredentials(user, passwd)) :: headers

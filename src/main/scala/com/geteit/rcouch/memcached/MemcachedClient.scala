@@ -12,10 +12,8 @@ import akka.pattern._
 trait MemcachedClient extends Client {
   import Memcached._
 
-  private implicit val timeout = Timeout(5.seconds)
-
   def get[A: Transcoder](key: String): Future[Option[A]] =
-    ask(cluster, Memcached.Get(key)).mapTo[GetResponse].map { res =>
+    ask(actor, Memcached.Get(key)).mapTo[GetResponse].map { res =>
       res.status match {
         case Status.NoError => Option(res.value).map(implicitly[Transcoder[A]].decode)
         case Status.NotFound => None
@@ -24,7 +22,7 @@ trait MemcachedClient extends Client {
     }
 
   def gets[A: Transcoder](key: String): Future[Option[CasValue[A]]] =
-    ask(cluster, Memcached.Get(key)).mapTo[GetResponse].map { res =>
+    ask(actor, Memcached.Get(key)).mapTo[GetResponse].map { res =>
       res.status match {
         case Status.NoError => Option(res.value).map(str => CasValue(implicitly[Transcoder[A]].decode(str), CasId(res.cas)))
         case Status.NotFound => None
@@ -43,12 +41,12 @@ trait MemcachedClient extends Client {
 
   private def storeOp[A: Transcoder](value: A, f: ByteString => StoreCommand): Future[Boolean] =
     implicitly[Transcoder[A]].withEncoded(value){ v =>
-      ask(cluster, f(v)).mapTo[Response].map(_.status == Status.NoError)
+      ask(actor, f(v)).mapTo[Response].map(_.status == Status.NoError)
     }
 
   def cas[A: Transcoder](key: String, value: A, cas: CasId, exp: Expire = Expire.Never): Future[CasResponse] =
     implicitly[Transcoder[A]].withEncoded(value){ v =>
-      ask(cluster, Set(key, v, 0, exp.time, cas = cas.id)).mapTo[StoreResponse].map { res =>
+      ask(actor, Set(key, v, 0, exp.time, cas = cas.id)).mapTo[StoreResponse].map { res =>
         res.status match {
           case Status.NoError => CasResponse.Ok
           case Status.Exists => CasResponse.Exists
@@ -59,7 +57,7 @@ trait MemcachedClient extends Client {
     }
 
   def delete(key: String): Future[Boolean] =
-    ask(cluster, Delete(key)).mapTo[Response].map(_.status == Status.NoError)
+    ask(actor, Delete(key)).mapTo[Response].map(_.status == Status.NoError)
 }
 
 case class CasValue[A](v: A, cas: CasId)

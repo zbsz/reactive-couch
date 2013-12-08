@@ -7,7 +7,6 @@ import com.typesafe.config.{Config, ConfigFactory}
 object Settings {
 
   case class ClusterSettings(
-                            bucketName: String,
                             hosts: List[String],
                             user: String = "",
                             passwd: String = "",
@@ -21,7 +20,7 @@ object Settings {
     def apply(): ClusterSettings = apply(ConfigFactory.load().getConfig("rcouch"))
 
     def apply(config: Config): ClusterSettings = {
-      new ClusterSettings(config.getString("bucket"), config.getStringList("hosts").toList, config.getString("user"), config.getString("passwd"))
+      new ClusterSettings(config.getStringList("hosts").toList, config.getString("user"), config.getString("passwd"))
     }
   }
 
@@ -32,17 +31,11 @@ object Settings {
   )
 
   case class MemcachedSettings(
-
     user: String = "",
-
     password: String = "",
-
     maxQueueSize: Int = 256,
-
     maxAuthRetries: Int = 3,
-
     authEnabled: Boolean = true,
-
     connection: ConnectionSettings = new ConnectionSettings()
   )
 

@@ -1,27 +1,34 @@
 package com.geteit.rcouch
 
-import org.scalatest.{BeforeAndAfter, FeatureSpec, Matchers}
-import com.geteit.rcouch.views.{DesignDocument, ViewResponse, Query, View}
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfter, FeatureSpec, Matchers}
+import com.geteit.rcouch.views._
 import com.geteit.rcouch.Settings.ClusterSettings
 import play.api.libs.iteratee.Iteratee
 import com.geteit.rcouch.views.ViewResponse.Row
 import scala.concurrent.{ExecutionContext, Await}
 import concurrent.duration._
 import ExecutionContext.Implicits.global
+import com.geteit.rcouch.memcached.MemcachedClient
+import com.geteit.rcouch.views.View
+import com.geteit.rcouch.views.ViewResponse.Row
 
 /**
   */
-class CouchbaseClientSpec extends FeatureSpec with Matchers with BeforeAndAfter {
+class ViewClientSpec extends FeatureSpec with Matchers with BeforeAndAfterAll {
 
   val settings = ClusterSettings()
-  var client: CouchbaseClient = _
-  
-  before {
-    client = new CouchbaseClient(settings)
+  var couchbase: CouchbaseClient = _
+  var client: ViewClient = _
+
+  override protected def beforeAll(): Unit = {
+    super.beforeAll()
+    couchbase = new CouchbaseClient(settings)
+    client = Await.result(couchbase.bucket("geteit"), 5.seconds)
   }
-  
-  after {
-    client.close()
+
+  override protected def afterAll(): Unit = {
+    couchbase.close()
+    super.afterAll()
   }
   
   feature("CouchbaseClient") {

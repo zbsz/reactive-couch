@@ -4,10 +4,11 @@ import org.scalatest._
 import scala.concurrent.{Future, ExecutionContext, Await}
 import scala.concurrent.duration._
 import ExecutionContext.Implicits.global
-import com.geteit.rcouch.memcached.{CasResponse, CasId, CasValue, Expire}
+import com.geteit.rcouch.memcached._
 import akka.util.Timeout
 import org.scalatest.matchers.{MatchResult, Matcher}
 import com.geteit.rcouch.Settings.ClusterSettings
+import scala.Some
 import scala.Some
 
 /**
@@ -15,15 +16,17 @@ import scala.Some
 class MemcachedClientSpec extends FeatureSpec with Matchers with BeforeAndAfterAll with FutureMatcher {
 
   val settings = ClusterSettings()
-  var client: CouchbaseClient = _
+  var couchbase: CouchbaseClient = _
+  var client: MemcachedClient = _
 
   override protected def beforeAll(): Unit = {
     super.beforeAll()
-    client = new CouchbaseClient(settings)
+    couchbase = new CouchbaseClient(settings)
+    client = Await.result(couchbase.bucket("geteit"), 5.seconds)
   }
 
   override protected def afterAll(): Unit = {
-    client.close()
+    couchbase.close()
     super.afterAll()
   }
 

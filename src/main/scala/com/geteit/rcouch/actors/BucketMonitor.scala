@@ -11,51 +11,33 @@ import scala.util.Random
 
 /**
   */
-class BucketMonitor(adminActor: ActorRef, config: ClusterSettings) extends Actor with ActorLogging {
-
-  import BucketMonitor._
+class BucketMonitor(_bucket: Bucket, config: ClusterSettings) extends Actor with ActorLogging {
 
   implicit val system = context.system
 
   private val user = config.user
   private val passwd = config.passwd
 
-  private var listeners = Nil: List[ActorRef]
-
-  private var bucket: Bucket = _
-  private var nodes = Nil: List[Node]
+  private var bucket = _bucket
+  private var nodes = Random.shuffle(bucket.nodes.toList)
 
   object JsonProtocol extends Couchbase.JsonProtocol
   import JsonProtocol._
 
-  adminActor ! AdminActor.GetBucket(config.bucketName)
+  override def preStart(): Unit = startMonitoring()
 
-  def receive: Actor.Receive = LoggingReceive(registration orElse {
-    case BucketNotFound => 
-      log.error("Bucket '{}' not found", config.bucketName)
-      context.stop(self)
-    case b: Bucket =>
-      onBucketReceived(b)
-      startMonitoring()
-  })
+  def receive: Actor.Receive = PartialFunction.empty
 
   def startMonitoring(): Unit = {
     val uri = Uri(s"http://${nodes.head.hostname}${bucket.streamingUri}")
-    val monitor = system.actorOf(StreamMonitor.props[Bucket](uri, self, user, passwd))
+    val monitor = context.actorOf(StreamMonitor.props[Bucket](uri, self, user, passwd))
     context.watch(monitor)
-    context.become(registration orElse monitoring(uri, monitor), discardOld = true)
+    context.become(monitoring(uri, monitor), discardOld = true)
   }
 
-  def onBucketReceived(b: Bucket): Unit = {
-    log debug s"Found bucket: $b"
-    this.bucket = b
-    this.nodes = Random.shuffle(b.nodes.toList)
-    listeners foreach (_ ! b)
-  }
-
-  def monitoring(uri: Uri, monitor: ActorRef): Actor.Receive = {
+  def monitoring(uri: Uri, monitor: ActorRef): Actor.Receive = LoggingReceive {
     case b: Bucket => onBucketReceived(b)
-    case Terminated(m) =>
+    case Terminated(_) =>
       log.error(s"Monitor actor has been terminated for: $uri")
       nodes = nodes.filter(n => !uri.authority.toString().contains(n.hostname))
       nodes match {
@@ -64,20 +46,14 @@ class BucketMonitor(adminActor: ActorRef, config: ClusterSettings) extends Actor
       }
   }
 
-  def registration: Actor.Receive = {
-    case Register =>
-      listeners ::= sender
-    case Unregister =>
-      listeners = listeners.filter(_ != sender)
+  def onBucketReceived(b: Bucket): Unit = {
+    log debug s"Found bucket: $b"
+    this.bucket = b
+    this.nodes = Random.shuffle(b.nodes.toList)
+    context.parent ! b
   }
 }
 
 object BucketMonitor {
-  val ClientSpecVer = "1.0"
-
-  def props(adminActor: ActorRef, config: ClusterSettings) = Props(classOf[BucketMonitor], adminActor, config)
-
-  sealed trait Command
-  case object Register extends Command
-  case object Unregister extends Command
+  def props(bucket: Bucket, config: ClusterSettings) = Props(classOf[BucketMonitor], bucket, config)
 }
