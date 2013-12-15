@@ -11,6 +11,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import com.geteit.rcouch.actors.AdminActor.BucketNotFound
 import akka.util.Timeout
+import com.geteit.rcouch.couchbase.rest.RestApi
 
 /**
   */
@@ -28,6 +29,7 @@ class ClusterActor(config: ClusterSettings) extends Actor with ActorLogging {
 
   def receive: Actor.Receive = LoggingReceive {
     case c: AdminActor.Command => admin.forward(c)
+    case c: RestApi.RestCommand => admin.forward(c)
     case GetBucketActor(bucketName) =>
       buckets.get(bucketName) match {
         case Some(bucket) => sender ! bucket

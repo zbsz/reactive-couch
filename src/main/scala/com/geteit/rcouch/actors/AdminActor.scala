@@ -249,8 +249,8 @@ class StreamMonitor[A <: AnyRef](streamingUri: Uri, parent: ActorRef, user: Stri
   IO(Http) ! HttpRequest(HttpMethods.GET, streamingUri, headers)
 
   def receive = {
-    case ChunkedResponseStart(res) => log.info("start: " + res)
-    case ChunkedMessageEnd(ext, trailer) => log.info("end: " + ext)
+    case ChunkedResponseStart(res) => log.debug("start: " + res)
+    case ChunkedMessageEnd(ext, trailer) => log.debug("end: " + ext)
       context.stop(self)
     case m: HttpMessagePart => pipeline.injectEvent(m)
     case msg => log.warning(s"Received unknown message: $msg")

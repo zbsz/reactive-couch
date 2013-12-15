@@ -10,10 +10,13 @@ import com.geteit.rcouch.Settings.MemcachedSettings
 import com.geteit.rcouch.memcached.Memcached._
 import com.geteit.rcouch.memcached.Memcached
 import akka.util.ByteString
+import com.geteit.rcouch.BucketSpec
+import com.geteit.rcouch.actors.NodeActor.MemcachedAddress
+import com.geteit.rcouch.couchbase.Couchbase.Bucket
 
 /**
   */
-class MemcachedIoSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with FeatureSpecLike with ShouldMatchers with BeforeAndAfterAll {
+class MemcachedIoSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with fixture.FeatureSpecLike with Matchers with BucketSpec {
 
   def this() = this(ActorSystem("MemcachedIoSpec"))
 
@@ -44,7 +47,7 @@ class MemcachedIoSpec(_system: ActorSystem) extends TestKit(_system) with Implic
   }
 
   feature("Connect to memcached server") {
-    scenario("Connect to server and set value") {
+    scenario("Connect to server and set value") { _ =>
       val memcached = system.actorOf(Props(classOf[MemcachedIoWithLogging], address, MemcachedSettings(authEnabled = false)))
 
       memcached ! Memcached.Set("key", ByteString("value"), 0, 3600)
@@ -63,8 +66,11 @@ class MemcachedIoSpec(_system: ActorSystem) extends TestKit(_system) with Implic
   }
 
   feature("Connect to Couchbase server") {
-    scenario("Connect to server and set value") {
-      val memcached = system.actorOf(Props(classOf[MemcachedIoWithLogging], new InetSocketAddress("localhost", 11210), MemcachedSettings(user = "geteit")))
+    scenario("Connect to server and set value") { bucket: Bucket =>
+
+      val MemcachedAddress(address) = bucket.nodes.head
+
+      val memcached = system.actorOf(Props(classOf[MemcachedIoWithLogging], address, MemcachedSettings(user = bucket.name, password = bucket.saslPasswd.getOrElse(""))))
 
       memcached ! Memcached.Set("key", ByteString("value"), 0, 3600)
       val res = expectMsgClass(classOf[StoreResponse])

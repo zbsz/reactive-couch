@@ -37,7 +37,7 @@ class ChunkedParserPipelineStage[A <: AnyRef : JsonReader] extends SymmetricPipe
 
     override def eventPipeline = {
       case MessageChunk(body, _) =>
-        log.info("chunk: " + body)
+        log.debug("chunk: " + body)
         val str = body.asString(HttpCharsets.`UTF-8`)
         if (body.length == 0 || str == "\n\n\n\n") {
           val json = buffer

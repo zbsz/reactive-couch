@@ -11,10 +11,12 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import akka.pattern._
 import com.geteit.rcouch.actors.ClusterActor.GetBucketActor
+import com.geteit.rcouch.BucketSpec
+import com.geteit.rcouch.couchbase.Couchbase.Bucket
 
 /**
   */
-class ClusterActorSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with FeatureSpecLike with ShouldMatchers with BeforeAndAfterAll {
+class ClusterActorSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with fixture.FeatureSpecLike with Matchers with BucketSpec {
 
   def this() = this(ActorSystem("ClusterSpec"))
   implicit val timeout = 5.seconds : Timeout
@@ -30,9 +32,9 @@ class ClusterActorSpec(_system: ActorSystem) extends TestKit(_system) with Impli
   }
 
   feature("Connect to couchbase server") {
-    scenario("Get BucketActor and send memcached commands") {
+    scenario("Get BucketActor and send memcached commands") { b: Bucket =>
       val cluster = system.actorOf(ClusterActor.props(ClusterSettings()))
-      val bucket = Await.result((cluster ? GetBucketActor("geteit")).mapTo[ActorRef], 5.seconds)
+      val bucket = Await.result((cluster ? GetBucketActor(b.name)).mapTo[ActorRef], 5.seconds)
 
       bucket ! Memcached.Set("key", ByteString("value"), 0, 3600)
       val res = expectMsgClass(classOf[StoreResponse])
@@ -48,10 +50,6 @@ class ClusterActorSpec(_system: ActorSystem) extends TestKit(_system) with Impli
       gr1.value should be(ByteString("value"))
 
       Await.result(gracefulStop(cluster, 5.seconds), 6.seconds)
-    }
-
-    scenario("Start ClusterActor and send view query") {
-
     }
   }
 }

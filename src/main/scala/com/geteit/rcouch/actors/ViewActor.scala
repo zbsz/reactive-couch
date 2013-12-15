@@ -28,6 +28,7 @@ import scala.util.Success
 import com.geteit.rcouch.actors.ViewActor.QueryCommand
 import com.geteit.rcouch.couchbase.rest.RestApi.RestFailed
 import akka.util.Timeout
+import com.geteit.rcouch.views.DesignDocument.DocumentDef
 
 /**
   */
@@ -75,18 +76,18 @@ class ViewActor(couchApiBase: Uri, user: String = "", passwd: String = "") exten
             log.error(e, s"GetDesignDoc failed, for command: $c")
             s ! RestFailed(Uri(s"/$bucket/_design/$doc"), Failure(e))
         }
-      case c @ SaveDesignDoc(doc) =>
+      case c @ SaveDesignDoc(name, doc) =>
         val s = sender
-        pipeline(Put(s"/$bucket/_design/${doc.name}", doc)) onComplete {
+        pipeline(Put(s"/$bucket/_design/$name", doc)) onComplete {
           case Success(r) if r.status.isSuccess =>
             log.debug(s"SaveDesignDoc response: $r")
             s ! Saved
           case Success(r) =>
             log.error(s"SaveDesignDoc failed, for command: $c; got response: $r")
-            s ! RestFailed(Uri(s"/$bucket/_design/${doc.name}"), Success(r))
+            s ! RestFailed(Uri(s"/$bucket/_design/$name"), Success(r))
           case Failure(e) =>
             log.error(e, s"SaveDesignDoc failed, for command: $c")
-            s ! RestFailed(Uri(s"/$bucket/_design/${doc.name}"), Failure(e))
+            s ! RestFailed(Uri(s"/$bucket/_design/$name"), Failure(e))
         }
       case c @ DeleteDesignDoc(doc) =>
         val s = sender
@@ -116,7 +117,7 @@ object ViewActor {
   sealed trait DesignCommand extends Command
   case class GetDesignDoc(name: String) extends DesignCommand
   case class DeleteDesignDoc(name: String) extends DesignCommand
-  case class SaveDesignDoc(doc: DesignDocument) extends DesignCommand
+  case class SaveDesignDoc(name: String, doc: DocumentDef) extends DesignCommand
 
   sealed trait Response
   case object Deleted extends Response

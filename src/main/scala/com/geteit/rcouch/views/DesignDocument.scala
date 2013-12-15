@@ -56,7 +56,9 @@ object DesignDocument {
     }
   }
 
-  case class ViewDef(map: Option[MapFunction], reduce: Option[ReduceFunction])
+  case class DocumentDef(views: Map[String, ViewDef])
+
+  case class ViewDef(map: MapFunction, reduce: Option[ReduceFunction] = None)
 
 
   object JsonProtocol extends DefaultJsonProtocol {
@@ -70,6 +72,8 @@ object DesignDocument {
       def read(json: JsValue): MapFunction = MapFunction(json.asInstanceOf[JsString].value)
     }
     implicit val ViewDefFormat: RootJsonFormat[ViewDef] = jsonFormat2(ViewDef)
+
+    implicit val DocumentDefFormat: RootJsonFormat[DocumentDef] = jsonFormat1(DocumentDef)
 
     implicit object DocumentFormat extends RootJsonFormat[DesignDocument] {
       def write(obj: DesignDocument): JsValue = JsObject(Map("views" -> obj.views.toJson))

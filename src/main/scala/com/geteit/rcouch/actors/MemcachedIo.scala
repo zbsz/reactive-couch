@@ -254,7 +254,7 @@ private trait MemcachedRunning {
         stay()
       } else {
         val d = cmds(i)
-        log info s"Received Memcached response $res for command: ${d.cmd}"
+        log debug s"Received Memcached response $res for command: ${d.cmd}"
         if (i > 0) log debug s"Will drop ${i + 1} commands ${cmds.take(i + 1)}"
 
         cmds.take(i) foreach { c =>

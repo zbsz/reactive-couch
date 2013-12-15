@@ -2,25 +2,24 @@ package com.geteit.rcouch.actors
 
 import akka.testkit.{ImplicitSender, TestKit}
 import akka.actor.ActorSystem
-import org.scalatest.{Matchers, FeatureSpecLike, BeforeAndAfterAll}
+import org.scalatest.{fixture, Matchers}
 import spray.http.Uri
-import com.geteit.rcouch.views.{DesignDocument, ViewResponse, Document, View}
+import com.geteit.rcouch.views.{DesignDocument, ViewResponse, View}
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import akka.pattern._
-import com.geteit.rcouch.FutureMatcher
+import com.geteit.rcouch.BucketSpec
 import com.geteit.rcouch.actors.ViewActor.{Deleted, Saved}
-import com.geteit.rcouch.couchbase.rest.RestApi.RestFailed
+import com.geteit.rcouch.Settings.ClusterSettings
+import com.geteit.rcouch.views.DesignDocument.{MapFunction, ViewDef, DocumentDef}
+import com.geteit.rcouch.couchbase.Couchbase.Bucket
 
 /**
   */
-class ViewActorSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with FeatureSpecLike with Matchers with BeforeAndAfterAll {
-
+class ViewActorSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with fixture.FeatureSpecLike with Matchers with BucketSpec {
   def this() = this(ActorSystem("ViewActorSpec"))
 
-  override protected def beforeAll() {
-    super.beforeAll()
-  }
+  val config = ClusterSettings()
 
   override protected def afterAll(): Unit = {
     super.afterAll()
@@ -28,24 +27,37 @@ class ViewActorSpec(_system: ActorSystem) extends TestKit(_system) with Implicit
     TestKit.shutdownActorSystem(system)
   }
 
-  feature("ViewActor connection to couchbase server") {
-    scenario("Connect and send view query") {
-      val actor = system.actorOf(ViewActor.props(Uri("http://127.0.0.1:8092/geteit")))
-      val doc = new DesignDocument("users", "geteit", Map())
-      actor ! ViewActor.QueryCommand(View("user_by_email", doc))
+  val ddoc = DocumentDef (Map(
+    "all_docs" -> ViewDef(MapFunction("function (doc, meta) { emit(meta.id, null); }"))
+  ))
 
-      val ViewResponse.Start(count) = expectMsgClass(classOf[ViewResponse.Start])
-      for (i <- 1 to count) {
-        expectMsgClass(classOf[ViewResponse.Row[_]])
-      }
-      expectMsgClass(classOf[ViewResponse.End])
+  withDocuments("ddoc" -> ddoc)
 
-      Await.result(gracefulStop(actor, 5.seconds), 6.seconds)
+  feature("DesignDocument operations") {
+    scenario("Save design document") { bucket: Bucket =>
+      val actor = system.actorOf(ViewActor.props(Uri(bucket.nodes.head.couchApiBase.get)))
+      actor ! ViewActor.SaveDesignDoc("test_doc", ddoc)
+      expectMsg(Saved)
     }
 
-    scenario("Try to query non existent view") {
-      val actor = system.actorOf(ViewActor.props(Uri("http://127.0.0.1:8092/geteit")))
-      val doc = new DesignDocument("users", "geteit", Map())
+    scenario("Get existing design document") { bucket: Bucket =>
+      val actor = system.actorOf(ViewActor.props(Uri(bucket.nodes.head.couchApiBase.get)))
+      actor ! ViewActor.GetDesignDoc("test_doc")
+      expectMsg(DesignDocument("test_doc", bucket.name, ddoc.views))
+    }
+
+    scenario("Delete existing design document") { bucket: Bucket =>
+      val actor = system.actorOf(ViewActor.props(Uri(bucket.nodes.head.couchApiBase.get)))
+      actor ! ViewActor.DeleteDesignDoc("test_doc")
+      expectMsg(Deleted)
+    }
+  }
+
+  feature("View operations") {
+
+    scenario("Try to query non existent view") { bucket: Bucket =>
+      val actor = system.actorOf(ViewActor.props(Uri(bucket.nodes.head.couchApiBase.get)))
+      val doc = new DesignDocument("ddoc", bucket.name, ddoc.views)
 
       actor ! ViewActor.QueryCommand(View("non_existent_view", doc))
 
@@ -53,43 +65,21 @@ class ViewActorSpec(_system: ActorSystem) extends TestKit(_system) with Implicit
 
       Await.result(gracefulStop(actor, 5.seconds), 6.seconds)
     }
-  }
 
-  feature("DesignDocument operations") {
-    scenario("Save empty design document") {
-      val actor = system.actorOf(ViewActor.props(Uri("http://127.0.0.1:8092/geteit")))
-      val doc = new DesignDocument("test_doc", "geteit", Map())
+    scenario("Connect and send view query") { bucket: Bucket =>
+      // TODO: populate db with documents
+      val actor = system.actorOf(ViewActor.props(Uri(bucket.nodes.head.couchApiBase.get)))
+      val view = View("all_docs", new DesignDocument("ddoc", bucket.name, ddoc.views))
 
-      actor ! ViewActor.DeleteDesignDoc("test_doc")
-      receiveOne(5.seconds)
+      actor ! ViewActor.QueryCommand(view)
 
-      actor ! ViewActor.SaveDesignDoc(doc)
-      expectMsg(Saved)
-    }
+      val ViewResponse.Start(count) = expectMsgClass(30.seconds, classOf[ViewResponse.Start]) // first view query can take a long time
+      for (i <- 1 to count) {
+        expectMsgClass(classOf[ViewResponse.Row[_]])
+      }
+      expectMsgClass(classOf[ViewResponse.End])
 
-    scenario("Delete existing design document") {
-      val actor = system.actorOf(ViewActor.props(Uri("http://127.0.0.1:8092/geteit")))
-      val doc = new DesignDocument("test_doc", "geteit", Map())
-
-      actor ! ViewActor.SaveDesignDoc(doc)
-      receiveOne(5.seconds)
-
-      actor ! ViewActor.DeleteDesignDoc("test_doc")
-      expectMsg(Deleted)
-    }
-
-    scenario("Get existing design document") {
-      val actor = system.actorOf(ViewActor.props(Uri("http://127.0.0.1:8092/geteit")))
-      val doc = new DesignDocument("test_doc", "geteit", Map())
-
-      actor ! ViewActor.DeleteDesignDoc("test_doc")
-      receiveOne(5.seconds)
-
-      actor ! ViewActor.SaveDesignDoc(doc)
-      expectMsg(Saved)
-
-      actor ! ViewActor.GetDesignDoc("test_doc")
-      expectMsg(doc)
+      Await.result(gracefulStop(actor, 5.seconds), 6.seconds)
     }
   }
 }

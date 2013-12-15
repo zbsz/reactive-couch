@@ -10,15 +10,15 @@ import scala.concurrent.Await
 import com.geteit.rcouch.couchbase.Couchbase.Bucket
 import akka.actor.ActorDSL._
 import com.geteit.rcouch.actors.AdminActor.GetBucket
+import com.geteit.rcouch.BucketSpec
 
 /**
   */
-class BucketMonitorSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with FeatureSpecLike with ShouldMatchers with BeforeAndAfterAll {
+class BucketMonitorSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with fixture.FeatureSpecLike with Matchers with BucketSpec {
 
   def this() = this(ActorSystem("BucketMonitorSpec"))
 
   val config = ClusterSettings()
-
 
   override protected def beforeAll() {
     super.beforeAll()
@@ -31,10 +31,10 @@ class BucketMonitorSpec(_system: ActorSystem) extends TestKit(_system) with Impl
   }
 
   feature("Connect to couchbase server") {
-    scenario("Find active node and start monitoring") {
+    scenario("Find active node and start monitoring") { b: Bucket =>
 
       val a = actor(system, "parent")(new Act {
-        context.actorOf(AdminActor.props(config)) ! GetBucket("geteit")
+        context.actorOf(AdminActor.props(config)) ! GetBucket(b.name)
 
         become {
           case bucket: Bucket =>

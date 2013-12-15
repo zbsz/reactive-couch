@@ -10,19 +10,18 @@ import org.scalatest.matchers.{MatchResult, Matcher}
 import com.geteit.rcouch.Settings.ClusterSettings
 import scala.Some
 import scala.Some
+import com.geteit.rcouch.couchbase.Couchbase.Bucket
 
 /**
   */
-class MemcachedClientSpec extends FeatureSpec with Matchers with BeforeAndAfterAll with FutureMatcher {
+class MemcachedClientSpec extends fixture.FeatureSpec with Matchers with CouchSpec with FutureMatcher {
 
-  val settings = ClusterSettings()
-  var couchbase: CouchbaseClient = _
-  var client: MemcachedClient = _
+  lazy val couchbase: CouchbaseClient = new CouchbaseClient()
 
-  override protected def beforeAll(): Unit = {
-    super.beforeAll()
-    couchbase = new CouchbaseClient(settings)
-    client = Await.result(couchbase.bucket("geteit"), 5.seconds)
+  type FixtureParam = MemcachedClient
+
+  override protected def withFixture(test: OneArgTest): Outcome = {
+    super.withFixture(bucket => test.toNoArgTest(Await.result(couchbase.bucket(bucket.name), 5.seconds)))
   }
 
   override protected def afterAll(): Unit = {
@@ -31,37 +30,37 @@ class MemcachedClientSpec extends FeatureSpec with Matchers with BeforeAndAfterA
   }
 
   feature("Memcached operations") {
-    scenario("Set string value") {
+    scenario("Set string value") { client =>
       client.set("key", "test_value", Expire.After(30)) should evalTo(true)
     }
 
-    scenario("Get nonexistent value") {
+    scenario("Get nonexistent value") { client =>
       client.get[String]("non_existent_key_1234#!@43") should evalTo(None)
     }
 
-    scenario("Get string value") {
+    scenario("Get string value") { client =>
       client.set("key", "test_value", Expire.After(30)) should evalTo(true)
       client.get[String]("key") should evalTo(Some("test_value"))
     }
 
-    scenario("Get value with cas") {
+    scenario("Get value with cas") { client =>
       client.set("key", "test_value", Expire.After(30)) should evalTo(true)
       eval(client.gets[String]("key")).map(_.v) should be(Some("test_value"))
     }
 
-    scenario("Cas unchanged value") {
+    scenario("Cas unchanged value") { client =>
       client.set("key", "test_value", Expire.After(30)) should evalTo(true)
       val cas = eval(client.gets[String]("key")).get.cas
       client.cas("key", "new_value", cas) should evalTo(CasResponse.Ok)
       client.get[String]("key") should evalTo(Some("new_value"))
     }
 
-    scenario("Cas non existent value") {
+    scenario("Cas non existent value") { client =>
       client.cas("non_existent_key_1!@#4", "new_value", CasId(1)) should evalTo(CasResponse.NotFound)
       client.get[String]("non_existent_key_1!@#4") should evalTo(None)
     }
 
-    scenario("Cas changed value") {
+    scenario("Cas changed value") { client =>
       client.set("key", "test_value", Expire.After(30)) should evalTo(true)
       val cas = eval(client.gets[String]("key")).get.cas
       client.set("key", "test_value1", Expire.After(30)) should evalTo(true)
@@ -69,20 +68,19 @@ class MemcachedClientSpec extends FeatureSpec with Matchers with BeforeAndAfterA
       client.get[String]("key") should evalTo(Some("test_value1"))
     }
 
-    scenario("Replace string value") {
+    scenario("Replace string value") { client =>
       client.set("key", "test_value", Expire.After(30)) should evalTo(true)
       client.replace("key", "new_test_value", Expire.After(30)) should evalTo(true)
       client.get[String]("key") should evalTo(Some("new_test_value"))
     }
 
-    scenario("Delete value") {
+    scenario("Delete value") { client =>
       client.set("key", "test_value", Expire.After(30)) should evalTo(true)
       client.delete("key") should evalTo(true)
       client.get[String]("key") should evalTo(None)
       client.delete("key") should evalTo(false)
     }
   }
-
 }
 
 trait FutureMatcher {
