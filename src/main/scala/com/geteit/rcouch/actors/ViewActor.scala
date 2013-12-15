@@ -5,20 +5,14 @@ import spray.can.Http
 import akka.io._
 import spray.http._
 import com.geteit.rcouch.views._
-import scala.collection.immutable.Queue
 import akka.io.IO
-import spray.http.HttpRequest
-import spray.http.HttpResponse
-import spray.can.Http.HostConnectorInfo
-import com.geteit.rcouch.views.View
-import scala.util.Success
-import scala.util.Failure
-import spray.http.ChunkedResponseStart
-import com.geteit.rcouch.actors.ViewActor.QueryCommand
 import com.geteit.rcouch.views.ViewResponse.HasActorSystem
 import scala.concurrent.Future
 import spray.client.pipelining._
+import akka.util.Timeout
 import spray.http.HttpRequest
+import com.geteit.rcouch.views.DesignDocument.DocumentDef
+import com.geteit.rcouch.couchbase.rest.RestApi.RestFailed
 import scala.util.Failure
 import spray.http.ChunkedResponseStart
 import spray.http.HttpResponse
@@ -26,9 +20,7 @@ import spray.can.Http.HostConnectorInfo
 import com.geteit.rcouch.views.View
 import scala.util.Success
 import com.geteit.rcouch.actors.ViewActor.QueryCommand
-import com.geteit.rcouch.couchbase.rest.RestApi.RestFailed
-import akka.util.Timeout
-import com.geteit.rcouch.views.DesignDocument.DocumentDef
+import java.util.concurrent.TimeUnit
 
 /**
   */
@@ -53,60 +45,40 @@ class ViewActor(couchApiBase: Uri, user: String = "", passwd: String = "") exten
 
     import DesignDocument.JsonProtocol._
     import spray.httpx.SprayJsonSupport._
-    import concurrent.duration._
 
-    implicit val timeout = 15.seconds: Timeout
+    implicit val timeout = Timeout(15, TimeUnit.SECONDS)
 
     val pipeline: HttpRequest => Future[HttpResponse] =
       if (user == "") sendReceive(connector) else addCredentials(BasicHttpCredentials(user, passwd)) ~> sendReceive(connector)
 
+    def rest(c: Command, req: HttpRequest, onSuccess: HttpResponse => Any): Unit = {
+      val s = sender
+      pipeline(req) onComplete {
+        case Success(r) if r.status.isSuccess =>
+          log.debug(s"Rest completed, command: $c, response: $r")
+          s ! onSuccess(r)
+        case Success(r) =>
+          log.error(s"Rest failed, for command: $c; got response: $r")
+          s ! RestFailed(req.uri, Success(r))
+        case Failure(e) =>
+          log.error(e, s"Res failed, for command: $c")
+          s ! RestFailed(req.uri, Failure(e))
+      }
+    }
+
     {
       case c: QueryCommand =>
         context.actorOf(Props(classOf[ViewQueryActor], couchApiBase, connector)).forward(c)
-      case c @ GetDesignDoc(doc) =>
-        val s = sender
-        pipeline(Get(s"/$bucket/_design/$doc")) onComplete {
-          case Success(r) if r.status.isSuccess =>
-            log.debug(s"GetDesignDoc response: $r")
-            s ! DesignDocument(bucket, r)
-          case Success(r) =>
-            log.error(s"GetDesignDoc failed, for command: $c; got response: $r")
-            s ! RestFailed(Uri(s"/$bucket/_design/$doc"), Success(r))
-          case Failure(e) =>
-            log.error(e, s"GetDesignDoc failed, for command: $c")
-            s ! RestFailed(Uri(s"/$bucket/_design/$doc"), Failure(e))
-        }
+      case c @ GetDesignDoc(name) =>
+        rest(c, Get(s"/$bucket/_design/$name"), DesignDocument(bucket, _))
       case c @ SaveDesignDoc(name, doc) =>
-        val s = sender
-        pipeline(Put(s"/$bucket/_design/$name", doc)) onComplete {
-          case Success(r) if r.status.isSuccess =>
-            log.debug(s"SaveDesignDoc response: $r")
-            s ! Saved
-          case Success(r) =>
-            log.error(s"SaveDesignDoc failed, for command: $c; got response: $r")
-            s ! RestFailed(Uri(s"/$bucket/_design/$name"), Success(r))
-          case Failure(e) =>
-            log.error(e, s"SaveDesignDoc failed, for command: $c")
-            s ! RestFailed(Uri(s"/$bucket/_design/$name"), Failure(e))
-        }
-      case c @ DeleteDesignDoc(doc) =>
-        val s = sender
-        pipeline(Delete(s"/$bucket/_design/$doc")) onComplete {
-          case Success(r) if r.status.isSuccess =>
-            log.debug(s"DeleteDesignDoc response: $r")
-            s ! Deleted
-          case Success(r) =>
-            log.error(s"DeleteDesignDoc failed, for command: $c; got response: $r")
-            s ! RestFailed(Uri(s"/$bucket/_design/$doc"), Success(r))
-          case Failure(e) =>
-            log.error(e, s"DeleteDesignDoc failed, for command: $c")
-            s ! RestFailed(Uri(s"/$bucket/_design/$doc"), Failure(e))
-        }
+        rest(c, Put(s"/$bucket/_design/$name", doc), _ => Saved)
+      case c @ DeleteDesignDoc(name) =>
+        rest(c, Delete(s"/$bucket/_design/$name"), _ => Deleted)
       case m =>
         log.warning("Got unexpected message: {}", m)
     }
   }
-
 }
 
 object ViewActor {
