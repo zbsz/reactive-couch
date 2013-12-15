@@ -70,12 +70,12 @@ class AdminActor(config: ClusterSettings) extends Actor with ActorLogging with S
       retryDelay = 1000
       val monitor = system.actorOf(StreamMonitor.props[PoolRes](streamingUri, self, user, passwd)(PoolResFormat))
       context.watch(monitor)
+      context.become(running(streamingUri, monitor) orElse restHandling)
       unstashAll()
-      context.become(monitoring(streamingUri, monitor))
     case _ => stash()
   }
 
-  def monitoring(streamingUri: Uri, monitor: ActorRef): Actor.Receive = LoggingReceive {
+  def running(streamingUri: Uri, monitor: ActorRef): Actor.Receive = LoggingReceive {
     case PoolRes(bUri, ns) =>
       bucketsUri = resolveUri(streamingUri, bUri.uri)
       nodes = ns.toList
@@ -91,60 +91,43 @@ class AdminActor(config: ClusterSettings) extends Actor with ActorLogging with S
       log.error(s"Monitor actor has been terminated for: $streamingUri")
       context.unbecome()
       self ! NodeCheckFailed(streamingUri)
+  }
+
+  def restHandling: Receive = {
     case GetBucket(name) =>
       sender ! buckets.find(_.name == name).getOrElse(BucketNotFound)
     case c: CreateBucket =>
-      val s = sender
-      pipeline(Post(bucketsUri, c)) onComplete {
-        case Success(r) if r.status.isSuccess =>
-          log.debug(s"CreateBucket response: $r")
-          s ! BucketCreated(c.name)
-        case Success(r) =>
-          log.error(s"Create bucket failed, for command: $c; got response: $r")
-          s ! RestFailed(bucketsUri, Success(r))
-        case Failure(e) =>
-          log.error(e, s"Create bucket failed, for command: $c")
-          s ! RestFailed(bucketsUri, Failure(e))
-      }
+      rest(c, Post(bucketsUri, c), _ => BucketCreated(c.name))
     case c @ DeleteBucket(name) =>
-      val s = sender
-      val uri = bucketsUri.withPath(bucketsUri.path / name)
-      pipeline(Delete(uri)) onComplete {
-        case Success(r) if r.status.isSuccess =>
-          log.debug(s"DeleteBucket response: $r")
-          s ! BucketDeleted(name)
-        case Success(r) =>
-          log.error(s"Delete bucket failed, for command: $c; got response: $r")
-          s ! RestFailed(uri, Success(r))
-        case Failure(e) =>
-          log.error(e, s"Delete bucket failed, for command: $c")
-          s ! RestFailed(uri, Failure(e))
-      }
+      rest(c, Delete(bucketsUri.withPath(bucketsUri.path / name)), _ => BucketDeleted(name))
     case c @ GetDesignDocs(bucket) =>
-      val s = sender
-      val uri = bucketsUri.withPath(bucketsUri.path / bucket / "ddocs")
-      pipeline(Get(uri)) onComplete {
-        case Success(r) if r.status.isSuccess =>
-          log.debug(s"GetDesignDocs response: $r")
-          s ! DesignDocument.ddocs(bucket, r)
-        case Success(r) =>
-          log.error(s"GetDesignDocs failed, for command: $c; got response: $r")
-          s ! RestFailed(uri, Success(r))
-        case Failure(e) =>
-          log.error(e, s"GetDesignDocs failed, for command: $c")
-          s ! RestFailed(uri, Failure(e))
-      }
+      rest(c, Get(bucketsUri.withPath(bucketsUri.path / bucket / "ddocs")), DesignDocument.ddocs(bucket, _))
+  }
+
+  private def rest(c: RestCommand, req: HttpRequest, onSuccess: HttpResponse => Any): Unit = {
+    val s = sender
+    pipeline(req) onComplete {
+      case Success(r) if r.status.isSuccess =>
+        log.debug(s"Rest success, command: $c, response: $r")
+        s ! onSuccess(r)
+      case Success(r) =>
+        log.error(s"Rest failed, for command: $c; got response: $r")
+        s ! RestFailed(req.uri, Success(r))
+      case Failure(e) =>
+        log.error(e, s"Rest failed, for command: $c")
+        s ! RestFailed(req.uri, Failure(e))
+    }
   }
 
 
-  def loadBuckets(uri: Uri) = bucketsPipeline(Get(uri)) onComplete {
+  private def loadBuckets(uri: Uri) = bucketsPipeline(Get(uri)) onComplete {
     case Success(bs) => self ! bs
     case Failure(e) =>
       log.error(e, s"Exception while loading buckets list for: $uri")
       self ! NodeCheckFailed(uri)
   }
 
-  def tryNode(node: Node): Unit = {
+  private def tryNode(node: Node): Unit = {
     val uri = Uri("http://" + node.hostname)
     (for {
       DefaultPool(pool) <- poolsPipeline(Get(resolveUri(uri, "/pools")))
@@ -163,7 +146,7 @@ class AdminActor(config: ClusterSettings) extends Actor with ActorLogging with S
     }
   }
 
-  def configNodes = config.hosts.map(Uri(_)).map { uri =>
+  private def configNodes = config.hosts.map(Uri(_)).map { uri =>
     Node(None, s"${uri.authority.host}:${uri.authority.port}", "", Ports(0, 0))
   }
 }
