@@ -1,11 +1,11 @@
 package com.geteit.rcouch.memcached
 
 import com.geteit.rcouch.Client
-import akka.util.{Timeout, ByteString}
+import akka.util.ByteString
 import spray.json.{JsonParser, JsValue}
 import concurrent.{ExecutionContext, Future}
-import concurrent.duration._
 import akka.pattern._
+import com.geteit.rcouch.couchbase.Couchbase.CouchbaseException
 
 /**
   */
@@ -58,6 +58,28 @@ trait MemcachedClient extends Client {
 
   def delete(key: String): Future[Boolean] =
     ask(actor, Delete(key)).mapTo[Response].map(_.status == Status.NoError)
+  
+  def update[A: Transcoder](key: String, c: CasValue[A], f: A => Option[A], maxRetries: Int = 5): Future[Option[A]] = {
+    def up(value: CasValue[A], retry: Int = 0): Future[Option[A]] = 
+      f(value.v).fold(Future.successful(None: Option[A])) { updated =>
+        cas[A](key, updated, value.cas) flatMap {
+          case CasResponse.Ok => Future.successful(Some(updated))
+          case CasResponse.Exists => 
+            if (retry >= maxRetries) throw new CouchbaseException(s"Could not update value for $key in $maxRetries retries")
+            gets[A](key).flatMap {
+              case Some(cas) => up(cas, retry + 1)
+              case None => throw new NoSuchElementException(s"No value found for key: $key")
+            }
+          case CasResponse.NotFound => throw new NoSuchElementException(s"No value found for key: $key")
+        }
+    }
+    up(c)
+  }
+  
+  def update[A: Transcoder](key: String, f: A => Option[A], maxRetries: Int = 5): Future[Option[A]] = gets[A](key).flatMap {
+    case Some(cas) => update(key, cas, f, maxRetries)
+    case None => throw new NoSuchElementException(s"No value found for key: $key")
+  }
 }
 
 case class CasValue[A](v: A, cas: CasId)

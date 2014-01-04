@@ -5,7 +5,7 @@ name := "reactive-couch"
 
 organization := "com.geteit"
 
-version := "0.1"
+version := "0.2-SNAPSHOT"
 
 scalaVersion := "2.10.3"
 
@@ -21,7 +21,7 @@ parallelExecution in IntegrationTest := false
 
 lazy val root = (
     Project("reactive-couch", file("."))
-    configs(IntegrationTest)
+    configs IntegrationTest
     settings( Defaults.itSettings : _*)
 )
 

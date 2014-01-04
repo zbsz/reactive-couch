@@ -1,7 +1,7 @@
 package com.geteit.rcouch.views
 
 import com.geteit.rcouch.Client
-import play.api.libs.iteratee.Enumerator
+import play.api.libs.iteratee.{Iteratee, Enumeratee, Enumerator}
 import scala.concurrent.Future
 import com.geteit.rcouch.actors.ViewActor._
 import akka.pattern.ask
@@ -14,10 +14,13 @@ import scala.Some
 import com.geteit.rcouch.views.DesignDocument.DocumentDef
 import akka.util.Timeout
 import concurrent.duration._
+import com.geteit.rcouch.memcached.{MemcachedClient, Transcoder}
+import scala.collection.mutable.ListBuffer
+import com.geteit.rcouch.views.Query.Stale
 
 /**
   */
-trait ViewClient extends Client {
+trait ViewClient extends Client { self: MemcachedClient =>
   val bucket: String
   import RestApi._
 
@@ -34,6 +37,15 @@ trait ViewClient extends Client {
       case Some(v) => Future.successful(v)
       case _ => Future.failed(new CouchbaseException(s"View not found: $view"))
     })
-
   def query[A](v: View, q: Query)(implicit timeout: Timeout = 15.seconds): Enumerator[ViewResponse.Row[A]] = new QueryExecutor(v, q).apply[A](this)
+
+  def enumerate[A](v: View, q: Query)(implicit timeout: Timeout = 15.seconds, evidence: Transcoder[A]): Enumerator[Option[A]] =
+    query(v, q) &> Enumeratee.mapM[ViewResponse.Row[Any]](row => row.id.fold(Future.successful(None: Option[A]))(id => get[A](id)))
+
+  def list[A](v: View, q: Query)(implicit timeout: Timeout = 15.seconds, evidence: Transcoder[A]): Future[List[Option[A]]] =
+    enumerate[A](v, q) |>>> Iteratee.fold(new ListBuffer[Option[A]])(_ += _) map (_.toList)
+
+  def forceRefresh(v: View)(implicit timeout: Timeout = 15.seconds): Future[Unit] =
+    query(v, Query(stale = Some(Stale.False), limit = Some(1))) |>>> Iteratee.foreach((_: ViewResponse.Row[Any]) => ())
+
 }
