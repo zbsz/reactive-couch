@@ -16,7 +16,7 @@ import concurrent.duration._
  */
 class QueryExecutor(v: View, q: Query)(implicit timeout: Timeout = 15.seconds) {
 
-  def apply[A](c: ViewClient)(implicit ec: ExecutionContext): Enumerator[ViewResponse.Row[A]] = {
+  def apply(c: ViewClient)(implicit ec: ExecutionContext): Enumerator[ViewResponse.Row] = {
     // TODO: implement back pressure - suspend reading results from server when buffer gets to big
 
     implicit val system = c.system
@@ -25,14 +25,14 @@ class QueryExecutor(v: View, q: Query)(implicit timeout: Timeout = 15.seconds) {
     val inbox = system.actorOf(Props(classOf[InboxActor]))
     c.actor.tell(QueryCommand(v, q), inbox)
 
-    def nextItem: Future[Option[ViewResponse.Row[A]]] = ask(inbox, Get) flatMap {
+    def nextItem: Future[Option[ViewResponse.Row]] = ask(inbox, Get) flatMap {
       case m: ViewResponse.End =>
         system.stop(inbox)
         Future.successful(None)
       case m: ViewResponse.Error =>
         system.stop(inbox)
         Future.failed(m)
-      case m: ViewResponse.Row[A] =>
+      case m: ViewResponse.Row =>
         Future.successful(Some(m))
       case _ => nextItem
     }

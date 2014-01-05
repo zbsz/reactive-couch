@@ -41,8 +41,8 @@ class ViewClientSpec extends fixture.FeatureSpec with Matchers with BucketSpec {
     scenario("Try to query non existent view") { bucket: Bucket =>
       val client = Await.result(couchbase.bucket(bucket.name), 10.seconds)
       val doc = new DesignDocument("ddoc", bucket.name, Map())
-      val enum = client.query[Any](View("non_existent_view", doc), Query())
-      val result = enum |>>> Iteratee.fold(Nil: List[Row[Any]])((l, row) => row :: l)
+      val enum = client.query(View("non_existent_view", doc), Query())
+      val result = enum |>>> Iteratee.fold(Nil: List[Row])((l, row) => row :: l)
 
       intercept[ViewResponse.Error] {
         info(s"Got result: ${Await.result(result, 10.seconds)}")
@@ -52,8 +52,8 @@ class ViewClientSpec extends fixture.FeatureSpec with Matchers with BucketSpec {
     scenario("Connect and send view query") { bucket: Bucket =>
       val client = Await.result(couchbase.bucket(bucket.name), 10.seconds)
       val doc = new DesignDocument("ddoc", bucket.name, Map())
-      val enum = client.query[Any](View("all_docs", doc), Query())(30.seconds)
-      val result = enum |>>> Iteratee.fold(Nil: List[Row[Any]])((l, row) => row :: l)
+      val enum = client.query(View("all_docs", doc), Query())(30.seconds)
+      val result = enum |>>> Iteratee.fold(Nil: List[Row])((l, row) => row :: l)
 
       info(s"Got result list of len: ${Await.result(result, 30.seconds).length}")
     }

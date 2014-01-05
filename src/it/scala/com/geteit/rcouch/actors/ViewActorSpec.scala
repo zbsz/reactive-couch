@@ -75,7 +75,7 @@ class ViewActorSpec(_system: ActorSystem) extends TestKit(_system) with Implicit
 
       val ViewResponse.Start(count) = expectMsgClass(30.seconds, classOf[ViewResponse.Start]) // first view query can take a long time
       for (i <- 1 to count) {
-        expectMsgClass(classOf[ViewResponse.Row[_]])
+        expectMsgClass(classOf[ViewResponse.Row])
       }
       expectMsgClass(classOf[ViewResponse.End])
 

@@ -2,9 +2,9 @@ package com.geteit.rcouch.memcached
 
 import com.geteit.rcouch.Client
 import akka.util.ByteString
-import spray.json.{JsonParser, JsValue}
 import concurrent.{ExecutionContext, Future}
 import akka.pattern._
+import play.api.libs.json._
 import com.geteit.rcouch.couchbase.Couchbase.CouchbaseException
 
 /**
@@ -137,5 +137,7 @@ object Transcoder {
   implicit val FloatTranscoder = StringTranscoder[Float](_.toString, _.toFloat)
   implicit val DoubleTranscoder = StringTranscoder[Double](_.toString, _.toDouble)
   implicit val BooleanTranscoder = StringTranscoder[Boolean](_.toString, _.toBoolean)
-  implicit val JsValueTranscoder = StringTranscoder[JsValue](_.compactPrint, JsonParser(_))
+  implicit val JsValueTranscoder = StringTranscoder[JsValue](Json.stringify, Json.parse)
+
+  implicit def jsonTranscoder[A](implicit r: Reads[A], w: Writes[A]) = JsValueTranscoder[A](w.writes, r.reads(_).asInstanceOf[JsSuccess[A]].get)
 }

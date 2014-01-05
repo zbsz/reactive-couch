@@ -43,8 +43,8 @@ class ViewActor(couchApiBase: Uri, user: String = "", passwd: String = "") exten
 
   def connected(connector: ActorRef): Actor.Receive = {
 
-    import DesignDocument.JsonProtocol._
-    import spray.httpx.SprayJsonSupport._
+    import DesignDocument._
+    import spray.httpx.PlayJsonSupport._
 
     implicit val timeout = Timeout(15, TimeUnit.SECONDS)
 

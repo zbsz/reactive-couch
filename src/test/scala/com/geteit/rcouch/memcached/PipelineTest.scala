@@ -5,11 +5,10 @@ import akka.io._
 import org.scalatest.prop.Checkers
 import org.scalacheck.Prop._
 import akka.util.ByteString
-import com.geteit.rcouch.memcached.BinaryPipeline.{Opcode, Frame, ResponseMagic}
-import scala.concurrent.{Await, Future}
+import com.geteit.rcouch.memcached.BinaryPipeline.{Opcode, ResponseMagic}
 import com.geteit.rcouch.memcached.Memcached.{Status, GetResponse, AuthList, Command}
 import akka.actor.{ActorContext, Actor, ActorSystem}
-import akka.testkit.{TestActorRef, TestActor}
+import akka.testkit.TestActorRef
 import com.geteit.rcouch.memcached.BinaryPipeline.Frame
 import scala.Some
 

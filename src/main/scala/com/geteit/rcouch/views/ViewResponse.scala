@@ -2,28 +2,32 @@ package com.geteit.rcouch.views
 
 import akka.io._
 import spray.http.{HttpCharsets, HttpData}
-import com.geteit.rcouch.views.Query.{BooleanKey, StringKey, Key}
-import org.parboiled.scala._
-import spray.json._
-import org.parboiled.{MatchHandler, MatcherContext}
-import org.parboiled.errors.ParseError
-import org.parboiled.support.DefaultValueStack
-import org.parboiled.buffers.DefaultInputBuffer
-import java.util
+import com.geteit.rcouch.views.Query.Key
 import akka.event.Logging
 import akka.actor.ActorSystem
+import play.api.libs.json._
+import scala.Some
+import play.api.libs.json.JsObject
+import org.parboiled.support.DefaultValueStack
+import org.parboiled.errors.ParseError
+import org.parboiled.{MatcherContext, MatchHandler}
+import org.parboiled.buffers.DefaultInputBuffer
+import org.parboiled.scala.Parser
+import java.util
 
 /**
   */
-sealed trait ViewResponse {
-
-}
+sealed trait ViewResponse
 
 object ViewResponse {
 
   case class Start(rowsCount: Int = 0) extends ViewResponse
 
-  case class Row[A](key: Key[A], value: JsValue, id: Option[String]) extends ViewResponse
+  case class Row(key: Key, value: JsValue, id: Option[String]) extends ViewResponse
+
+  object Row {
+    implicit val fmt = Json.format[Row]
+  }
 
   case class End() extends ViewResponse
 
@@ -71,7 +75,7 @@ object ViewResponse {
 
       object ViewRow {
         object ViewRowParser extends Parser {
-          val Row = rule { optional(str(",")) ~ JsonParser.WhiteSpace ~ JsonParser.JsonObject }
+          val Row = rule { optional(str(",")) ~ ParboiledJsonParser.WhiteSpace ~ ParboiledJsonParser.JsonObject }
         }
 
         val valueStack = new DefaultValueStack[JsObject]
@@ -81,26 +85,17 @@ object ViewResponse {
           override def `match`(context: MatcherContext[_]): Boolean = context.getMatcher.`match`(context)
         }
 
-        def unapply(input: String): Option[(Row[_], String)] = {
+        def unapply(input: String): Option[(Row, String)] = {
           valueStack.clear()
           errors.clear()
 
           val context = new MatcherContext(new DefaultInputBuffer(input.toCharArray), valueStack, errors, matchHandler, ViewRowParser.Row.matcher, true)
           if (context.runMatcher()) {
-            Some((row(valueStack.pop()), input.drop(context.getCurrentIndex)))
+            Some(valueStack.pop().as[Row], input.drop(context.getCurrentIndex))
           } else {
-            log.warning(s"View row parsing failed: $errors for input: $input")
+            log.debug(s"Streamed view row parsing failed (as expected when streaming): $errors for input: $input")
             None
           }
-        }
-
-        def row(o: JsObject): Row[_] = Row(key(o.fields("key")), o.fields("value"), o.fields.get("id").map(_.asInstanceOf[JsString].value))
-
-        def key(o: JsValue): Key[_] = o match {
-          case JsString(v) => StringKey(v)
-          case JsBoolean(b) => BooleanKey(b)
-          case JsArray(elems) => ???
-          case _ => StringKey(o.prettyPrint)
         }
       }
     }

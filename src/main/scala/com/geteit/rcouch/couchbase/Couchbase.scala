@@ -1,10 +1,9 @@
 package com.geteit.rcouch.couchbase
 
-import spray.json.{JsonReader, JsonParser, DefaultJsonProtocol}
 import akka.event.Logging
 import spray.http._
 import akka.io.{SymmetricPipePair, HasActorContext, SymmetricPipelineStage}
-import java.io.{File, FileWriter}
+import play.api.libs.json.{Reads, Json}
 
 /**
   */
@@ -18,17 +17,15 @@ object Couchbase {
   case class VBucketMap(hashAlgorithm: String, numReplicas: Int, serverList: Array[String], vBucketMap: Array[Array[Int]])
   case class Bucket(name: String, uri: String, streamingUri: String, saslPasswd: Option[String], nodes: Array[Node], vBucketServerMap: VBucketMap)
 
-  trait JsonProtocol extends DefaultJsonProtocol {
-    implicit val PortsFormat = jsonFormat2(Ports)
-    implicit val NodeFormat = jsonFormat4(Node)
-    implicit val VBucketMapFormat = jsonFormat4(VBucketMap)
-    implicit val BucketFormat = jsonFormat6(Bucket)
-  }
+  implicit val PortsFormat = Json.format[Ports]
+  implicit val NodeFormat = Json.format[Node]
+  implicit val VBucketMapFormat = Json.format[VBucketMap]
+  implicit val BucketFormat = Json.format[Bucket]
 
   class CouchbaseException(msg: String, cause: Throwable = null) extends Exception(msg, cause)
 }
 
-class ChunkedParserPipelineStage[A <: AnyRef : JsonReader] extends SymmetricPipelineStage[HasActorContext, A, HttpMessagePart] {
+class ChunkedParserPipelineStage[A <: AnyRef : Reads] extends SymmetricPipelineStage[HasActorContext, A, HttpMessagePart] {
   def apply(ctx: HasActorContext) = new SymmetricPipePair[A, HttpMessagePart] {
     val log = Logging(ctx.getContext.system, classOf[ChunkedParserPipelineStage[A]])
     var buffer = ""
@@ -52,7 +49,7 @@ class ChunkedParserPipelineStage[A <: AnyRef : JsonReader] extends SymmetricPipe
 
     private def parse(json: String): A = {
       try {
-        implicitly[JsonReader[A]].read(JsonParser(json))
+        Json.parse(json).as[A]
       } catch {
         case e: Exception =>
           log.error(e, s"error while parsing chunk: $json")

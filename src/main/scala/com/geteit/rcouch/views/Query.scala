@@ -3,6 +3,10 @@ package com.geteit.rcouch.views
 import java.net.URLEncoder
 import Query._
 import spray.http.Uri
+import play.api.libs.json._
+import play.api.libs.json.JsString
+import scala.Some
+import com.geteit.rcouch.views.Query.BBox
 
 /**
  * The Query class allows custom view-queries to the Couchbase cluster.
@@ -13,14 +17,14 @@ import spray.http.Uri
  *
  * By default, the full docs are not included and no reduce job is executed.
  */
-case class Query(key: Option[Key[_]] = None,
-                 keys: List[Key[_]] = Nil,
+case class Query(key: Option[Key] = None,
+                 keys: List[Key] = Nil,
                  group: Option[Boolean] = None,
                  groupLevel: Option[Int] = None,
                  limit: Option[Int] = None,
                  skip: Option[Int] = None,
-                 startKey: Option[Key[_]] = None,
-                 endKey: Option[Key[_]] = None,
+                 startKey: Option[Key] = None,
+                 endKey: Option[Key] = None,
                  inclusiveEnd: Option[Boolean] = None,
                  startKeyDocId: Option[String] = None,
                  endKeyDocId: Option[String] = None,
@@ -85,35 +89,34 @@ object Query {
     case object UpdateAdter extends Stale("update_after")
   }
 
-  sealed trait Key[A] {
-    val value: A
-    val json: String
-    override def toString: String = json
+  case class Key(json: JsValue) {
+    override def toString: String = Json.stringify(json)
   }
-
-  case class StringKey(value: String) extends Key[String] {
-    override val json = "\"" + value + "\""
-  }
-  case class BooleanKey(value: Boolean) extends Key[Boolean] {
-    override val json = value.toString
-  }
-  case class NumKey[A: Numeric](value: A) extends Key[A] {
-    override val json = value.toString
-  }
-  case class ArrayKey[A](value: Array[A])(implicit conv: A => Key[A]) extends Key[Array[A]] {
-    override val json = value.map(conv(_).json).mkString("[", ",", "]")
-  }
+//  case class BooleanKey(value: Boolean) extends Key {
+//    override val json = value.toString
+//  }
+//  case class NumKey[A: Numeric](value: A) extends Key {
+//    override val json = value.toString
+//  }
+//  case class TupleKey1[A](value: (A))(implicit conv: A => Key) extends Key {
+//    override val json = s"[${conv(_).json}]"
+//  }
 
   object Key {
     import scala.language.implicitConversions
 
-    implicit def string_to_key(str: String) = StringKey(str)
-    implicit def boolean_to_key(b: Boolean) = BooleanKey(b)
-    implicit def number_to_key[A: Numeric](n: A) = NumKey(n)
-    implicit def pair_to_key[A, B](p: (A, B))(implicit aconv: A => Key[A], bconv: B => Key[B]) = new Key[(A, B)] {
-      override val value = p
-      override val json = s"[${aconv(p._1).json},${bconv(p._2).json}}]"
+    object String {
+      def unapply(key: Key) = key match {
+        case Key(JsString(str)) => Some(str)
+        case _ => None
+      }
     }
+
+    implicit val fmt = new Format[Key]{
+      def reads(json: JsValue): JsResult[Key] = JsSuccess(Key(json))
+      def writes(o: Key): JsValue = o.json
+    }
+    implicit def value_to_key[A](v: A)(implicit writes: Writes[A]) = Key(writes.writes(v))
   }
 
   case class BBox(lowerLeftLong: Double, lowerLeftLat: Double, upperRightLong: Double, upperRightLat: Double) {

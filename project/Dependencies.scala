@@ -23,13 +23,14 @@ object Dependencies {
 
 
   val iteratees = "com.typesafe.play" %% "play-iteratees" % "2.2.0"
+  val playJson = "com.typesafe.play" %% "play-json" % "2.2.0"
+  val parboiled = "org.parboiled" %% "parboiled-scala" % "1.1.6"
 
   val sprayClient = "io.spray" % "spray-client" % "1.2-RC2"
   val sprayCan = "io.spray" % "spray-can" % "1.2-RC2"
-  val sprayJson = "io.spray" %% "spray-json" % "1.2.5"
   val specs = "org.specs2" %% "specs2" % "2.2.3"
   val scalatest = "org.scalatest" %% "scalatest" % "2.0.RC1"
   val scalacheck = "org.scalacheck" %% "scalacheck" % "1.10.1"
 
-  val all = Seq(akka, sprayCan, sprayClient, sprayJson, iteratees, scalacheck % "test", scalatest % "it,test", jmemcached % "it,test", testkit % "it,test", logback % "it,test")
+  val all = Seq(akka, sprayCan, sprayClient, iteratees, parboiled, playJson, scalacheck % "test", scalatest % "it,test", jmemcached % "it,test", testkit % "it,test", logback % "it,test")
 }

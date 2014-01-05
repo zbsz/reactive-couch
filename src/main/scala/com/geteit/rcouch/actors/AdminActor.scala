@@ -3,12 +3,11 @@ package com.geteit.rcouch.actors
 import akka.actor._
 import spray.http._
 import scala.concurrent.Future
-import com.geteit.rcouch.couchbase.{Couchbase, ChunkedParserPipelineStage}
+import com.geteit.rcouch.couchbase.ChunkedParserPipelineStage
 import akka.io.{HasActorContext, PipelineFactory, IO}
 import spray.can.Http
 import concurrent.duration._
 import akka.event.{LoggingReceive, Logging}
-import spray.json.JsonReader
 import com.geteit.rcouch.couchbase.rest.RestApi._
 import spray.client.pipelining._
 import com.geteit.rcouch.Settings.ClusterSettings
@@ -17,15 +16,14 @@ import spray.http.HttpHeaders.RawHeader
 import scala.util.Failure
 import spray.http.ChunkedResponseStart
 import com.geteit.rcouch.couchbase.rest.RestApi.DeleteBucket
-import com.geteit.rcouch.couchbase.Couchbase.Node
 import spray.http.HttpResponse
 import scala.util.Success
 import spray.http.HttpRequest
 import com.geteit.rcouch.couchbase.rest.RestApi.BucketCreated
 import akka.actor.Terminated
-import com.geteit.rcouch.couchbase.Couchbase.Bucket
-import com.geteit.rcouch.couchbase.Couchbase.Ports
+import com.geteit.rcouch.couchbase.Couchbase._
 import com.geteit.rcouch.views.DesignDocument
+import play.api.libs.json.{Reads, Json}
 
 /**
   */
@@ -47,7 +45,6 @@ class AdminActor(config: ClusterSettings) extends Actor with ActorLogging with S
 
   val pipelines = new Pipelines(user, passwd)
   import pipelines._
-  import pipelines.JsonProtocol._
 
   tryNode(nodes.head)
 
@@ -163,8 +160,8 @@ object AdminActor {
 
   case class PoolUri(name: String, uri: String, streamingUri: String)
   case class BucketsUri(uri: String)
-  case class PoolsRes(pools: Array[PoolUri])
-  case class PoolRes(buckets: BucketsUri, nodes: Array[Node])
+  case class PoolRes(buckets: BucketsUri, nodes: List[Node])
+  case class PoolsRes(pools: List[PoolUri])
 
   def resolveUri(base: Uri, uri: String) = Uri(uri).resolvedAgainst(base)
 
@@ -174,21 +171,16 @@ object AdminActor {
     def unapply(res: PoolsRes) = res.pools.find(_.name == "default").orElse(res.pools.headOption)
   }
 
-  trait JsonProtocol extends Couchbase.JsonProtocol {
-    implicit val BucketUriFormat = jsonFormat1(BucketsUri)  // XXX: this has to be defined before PoolResFormat
-    implicit val PoolUriFormat   = jsonFormat3(PoolUri)
-    implicit val PoolsResFormat  = jsonFormat1(PoolsRes)
-    implicit val PoolResFormat   = jsonFormat2(PoolRes)
-  }
+  implicit val BucketUriFormat = Json.format[BucketsUri]
+  implicit val PoolUriFormat   = Json.format[PoolUri]
+  implicit val PoolResFormat   = Json.format[PoolRes]
+  implicit val PoolsResFormat  = Json.format[PoolsRes]
 
   class Pipelines(user: String, passwd: String)(implicit val system: ActorSystem) {
     import system.dispatcher
 
     val log = Logging(system, "AdminActor.Pipelines")
-
-    object JsonProtocol extends AdminActor.JsonProtocol
-    import JsonProtocol._
-    import spray.httpx.SprayJsonSupport._
+    import spray.httpx.PlayJsonSupport._
 
     val pipeline: HttpRequest => Future[HttpResponse] =
       if (user == "") sendReceive else addCredentials(BasicHttpCredentials(user, passwd)) ~> sendReceive
@@ -213,11 +205,11 @@ object AdminActor {
 object StreamMonitor {
   val ClientSpecVer = "1.0"
 
-  def props[A <: AnyRef : JsonReader](streamingUri: Uri, parent: ActorRef, user: String, passwd: String) =
-    Props(classOf[StreamMonitor[A]], streamingUri, parent, user, passwd, implicitly[JsonReader[A]])
+  def props[A <: AnyRef : Reads](streamingUri: Uri, parent: ActorRef, user: String, passwd: String) =
+    Props(classOf[StreamMonitor[A]], streamingUri, parent, user, passwd, implicitly[Reads[A]])
 }
 
-class StreamMonitor[A <: AnyRef](streamingUri: Uri, parent: ActorRef, user: String, passwd: String, reader: JsonReader[A]) extends Actor with ActorLogging {
+class StreamMonitor[A <: AnyRef](streamingUri: Uri, parent: ActorRef, user: String, passwd: String, reader: Reads[A]) extends Actor with ActorLogging {
 
   implicit val system = context.system
 

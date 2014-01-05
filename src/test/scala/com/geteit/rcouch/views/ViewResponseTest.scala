@@ -6,12 +6,15 @@ import akka.actor.ActorSystem
 import spray.http.HttpData
 import com.geteit.rcouch.views.ViewResponse.{HasActorSystem, PipelineStage}
 import akka.testkit.TestKit
-import com.geteit.rcouch.views.Query.StringKey
-import spray.json.JsNull
+import play.api.libs.json.JsNull
+import org.scalacheck.Gen
+
+import org.scalatest.prop.Checkers
+import org.scalacheck.Prop._
 
 /**
   */
-class ViewResponseTest(_system: ActorSystem) extends TestKit(_system) with FeatureSpecLike with Matchers {
+class ViewResponseTest(_system: ActorSystem) extends TestKit(_system) with FeatureSpecLike with Matchers with Checkers {
 
   def this() = this(ActorSystem("ViewResponseTest"))
 
@@ -24,13 +27,13 @@ class ViewResponseTest(_system: ActorSystem) extends TestKit(_system) with Featu
                        |]
                        |}""".stripMargin
 
-  feature("PipelineStage") {
-
-    scenario("Parse with regexps") {
-      PipelineStage.TotalRows.unapplySeq(viewResponse) should be(Some(List("5", viewResponse.substring(16))))
-      PipelineStage.RowsStart.unapplySeq(viewResponse.substring(16)) should be(Some(List(viewResponse.substring(25))))
-      PipelineStage.RowsEnd.unapplySeq(" \n  ]\n}  ") should be(Some(List()))
+  def substrings(str: String): Gen[List[String]] =
+    if (str.length < 2) Gen.value(List(str))
+    else Gen.choose(1, str.length) flatMap { i =>
+      substrings(str.substring(i)) map { ls => str.substring(0, i) :: ls }
     }
+
+  feature("PipelineStage") {
 
     scenario("Parse View Response") {
       val pp = PipelineFactory.buildFunctionTriple(
@@ -40,9 +43,31 @@ class ViewResponseTest(_system: ActorSystem) extends TestKit(_system) with Featu
       val events = pp.events(HttpData(viewResponse))._1.toList
       events.length should be(7)
       events(0) should be(ViewResponse.Start(5))
-      events(1) should be(ViewResponse.Row(StringKey("test1@gmail.com"), JsNull, Some("57ce515e-0b74-4a88-8596-d0db728c46f5")))
-      events(2) should be(ViewResponse.Row(StringKey("test2@gmail.com"), JsNull, Some("2672a23c-31a2-4afb-bb81-2ec31c2c6270")))
+      events(1) should be(ViewResponse.Row("test1@gmail.com", JsNull, Some("57ce515e-0b74-4a88-8596-d0db728c46f5")))
+      events(2) should be(ViewResponse.Row("test2@gmail.com", JsNull, Some("2672a23c-31a2-4afb-bb81-2ec31c2c6270")))
       events(6) should be(ViewResponse.End())
+    }
+
+    scenario("Parse View Response in fragments") {
+      check(forAll(substrings(viewResponse)) { ls =>
+        ls.fold("")(_ + _) == viewResponse ==> {
+
+          val pp = PipelineFactory.buildFunctionTriple(
+            new HasActorSystem() { val system = ViewResponseTest.this.system },
+            new ViewResponse.PipelineStage)
+
+          val events = ls.map(str => pp.events(HttpData(str))._1.toList).flatten
+
+          events == List(
+            ViewResponse.Start(5),
+            ViewResponse.Row("test1@gmail.com", JsNull, Some("57ce515e-0b74-4a88-8596-d0db728c46f5")),
+            ViewResponse.Row("test2@gmail.com", JsNull, Some("2672a23c-31a2-4afb-bb81-2ec31c2c6270")),
+            ViewResponse.Row("test3@gmail.com", JsNull, Some("30909729-9728-4f9b-9589-dbcd4f5a7a82")),
+            ViewResponse.Row("test4@mail.com", JsNull, Some("ac08e648-f5bf-4537-935e-3e620276103b")),
+            ViewResponse.Row("some_mail@gmail.com", JsNull, Some("d81522fe-db69-43fa-aa99-238a8d8779d3")),
+            ViewResponse.End())
+        }
+      })
     }
   }
 }

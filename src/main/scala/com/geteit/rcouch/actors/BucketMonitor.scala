@@ -4,9 +4,7 @@ import akka.actor._
 import spray.http._
 import com.geteit.rcouch.Settings.ClusterSettings
 import akka.event.LoggingReceive
-import com.geteit.rcouch.actors.AdminActor.{BucketNotFound, PoolRes}
-import com.geteit.rcouch.couchbase.Couchbase.{Node, Bucket}
-import com.geteit.rcouch.couchbase.Couchbase
+import com.geteit.rcouch.couchbase.Couchbase._
 import scala.util.Random
 
 /**
@@ -20,9 +18,6 @@ class BucketMonitor(_bucket: Bucket, config: ClusterSettings) extends Actor with
 
   private var bucket = _bucket
   private var nodes = Random.shuffle(bucket.nodes.toList)
-
-  object JsonProtocol extends Couchbase.JsonProtocol
-  import JsonProtocol._
 
   override def preStart(): Unit = startMonitoring()
 
