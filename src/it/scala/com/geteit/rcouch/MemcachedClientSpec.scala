@@ -80,6 +80,13 @@ class MemcachedClientSpec extends fixture.FeatureSpec with Matchers with CouchSp
       client.get[String]("key") should evalTo(None)
       client.delete("key") should evalTo(false)
     }
+
+    scenario("Get multiple values asynchronously") { client =>
+      Future.sequence((1 to 10).map(i => client.set(s"key_$i", s"value_$i", Expire.After(30)))) should evalTo((1 to 10).map(_ => true))
+
+      val res = Await.result(Future.sequence((1 to 10).map(i => client.get[String](s"key_$i"))), 5.seconds)
+      res.flatten.toSet should be((1 to 10).map(i => s"value_$i").toSet)
+    }
   }
 }
 

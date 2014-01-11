@@ -31,6 +31,7 @@ class BucketActor(bucket: Bucket, config: ClusterSettings) extends Actor with St
       NodesManager.update(b)
       if (!NodesManager.initialized) context.unbecome() 
     case c: Memcached.KeyCommand =>
+      c.vBucket = NodesManager.vBucket(c.key)
       NodesManager.primary(c.key).forward(c) // XXX: should we rotate to replicas?
     case c: ViewActor.Command =>
       NodesManager.roundRobin.forward(c)
@@ -74,7 +75,9 @@ class BucketActor(bucket: Bucket, config: ClusterSettings) extends Actor with St
     def nodeTerminated(node: ActorRef): Unit = {
       // TODO: implement node watch, should we restart it or remove from list ??
     }
-    
+
+    def vBucket(key: String) = locator.vbucketIndex(key)
+
     def primary(key: String) = nodesMap(locator(key).primary)
 
     def roundRobin = {

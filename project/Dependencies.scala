@@ -7,8 +7,8 @@ object Dependencies {
   val typesafe = "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/"
   val scalaTools = "Scala-Tools Maven2 Snapshots Repository" at "http://scala-tools.org/repo-snapshots"
 
-  val snapshots = "snapshots" at "http://oss.sonatype.org/content/repositories/snapshots"
-  val releases = "releases"  at "http://oss.sonatype.org/content/repositories/releases"
+  val snapshots = "oss-snapshots" at "http://oss.sonatype.org/content/repositories/snapshots"
+  val releases = "oss-releases"  at "http://oss.sonatype.org/content/repositories/releases"
   val sprayRepo = "spray repo" at "http://repo.spray.io"
 
   val resolvers = Seq(local, typesafe, releases, snapshots, scalaTools, sprayRepo)

@@ -50,10 +50,10 @@ object MemcachedIo {
   case class AuthorizingData(retriesLeft: Int = 0, pipeline: Pipe, queue: Queue[CommandData]) extends Data with PipelineData {
     override def updated(queue: Queue[CommandData]) = copy(queue = queue)
   }
-  case class RunningData(pipeline: Pipe, queue: Queue[CommandData], cmds: List[CommandData] = Nil) extends Data with PipelineData {
+  case class RunningData(pipeline: Pipe, queue: Queue[CommandData], cmds: Queue[CommandData] = Queue()) extends Data with PipelineData {
     override def updated(queue: Queue[CommandData]) = copy(queue = queue)
   }
-  case class FailedData(queue: Queue[CommandData], cmds: List[CommandData] = Nil) extends Data {
+  case class FailedData(queue: Queue[CommandData], cmds: Queue[CommandData] = Queue()) extends Data {
     override def updated(queue: Queue[CommandData]) = copy(queue = queue)
   }
 
@@ -103,12 +103,12 @@ private class MemcachedIo(val address: InetSocketAddress, val node: NodeRef, val
           log debug "Sending command: " + frame.decodeString("utf8")
 
           self ! Write(frame)
-        case Failure(ex) => log.error(ex, "couldn'seconds encode memcached command")
+        case Failure(ex) => log.error(ex, "couldn't encode memcached command")
       }, {
         case Success(res) =>
           log debug s"Decoded response: $res"
           self ! res
-        case Failure(ex) => log.error(ex, "couldn'seconds decode memcached response")
+        case Failure(ex) => log.error(ex, "couldn't decode memcached response")
       })
       if (config.authEnabled) goto(Authorizing) using AuthorizingData(pipeline = pipeline, queue = queue)
       else goto(Running) using RunningData(pipeline, queue)
@@ -258,7 +258,7 @@ private trait MemcachedRunning {
         if (i > 0) log debug s"Will drop ${i + 1} commands ${cmds.take(i + 1)}"
 
         cmds.take(i) foreach { c =>
-          c.sender ! StatusResponse(c.cmd.opcode, Memcached.Status.NoError, c.cmd.opaque)
+          c.sender ! StatusResponse(c.cmd.opcode, Memcached.Status.NoError, c.cmd.opaque) // TODO: Causes ClassCastException after Get command - seems that responses aren't really ordered or there is some other bug
         }
         d.sender ! res
 
@@ -268,7 +268,7 @@ private trait MemcachedRunning {
 
   onUnhandled {
     case Event(Received(raw: ByteString), PipelineData(pipeline)) =>
-      log debug s"got reponse: $raw"
+      log debug s"got reponse: ${raw.decodeString("utf8")}"
       pipeline.injectEvent(raw)
       stay()
     case Event(cmd: Command, data @ QueueData(queue)) =>
@@ -293,13 +293,13 @@ private trait MemcachedRunning {
     }
   }
 
-  def checkQueue(pipeline: Pipe, queue: Queue[CommandData], cmds: List[CommandData]): RunningData = {
+  def checkQueue(pipeline: Pipe, queue: Queue[CommandData], cmds: Queue[CommandData]): RunningData = {
     log debug s"check queue: $queue"
     if (queue.isEmpty) RunningData(pipeline, queue, cmds)
     else {
       val cd = queue.head
       pipeline.injectCommand(cd.cmd) //TODO: implement throttling, use NACK based approach
-      checkQueue(pipeline, queue.tail, cd :: cmds)
+      checkQueue(pipeline, queue.tail, cmds.enqueue(cd))
     }
   }
 }
@@ -314,13 +314,13 @@ private trait MemcachedBackPressure {
   private var ackBuffer = Queue[ByteString]()
   private var retryBuffer = Queue[ByteString]()
 
-  override def checkQueue(pipeline: MemcachedIo.Pipe, queue: Queue[CommandData], cmds: List[CommandData]): RunningData = {
+  override def checkQueue(pipeline: MemcachedIo.Pipe, queue: Queue[CommandData], cmds: Queue[CommandData]): RunningData = {
     log debug s"check queue: $queue"
     if (queue.isEmpty || suspended) RunningData(pipeline, queue, cmds)
     else {
       val cd = queue.head
       pipeline.injectCommand(cd.cmd)
-      checkQueue(pipeline, queue.tail, cd :: cmds)
+      checkQueue(pipeline, queue.tail, cmds.enqueue(cd))
     }
   }
 

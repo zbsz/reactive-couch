@@ -15,7 +15,7 @@ class VBucketLocator(map: VBucketMap) {
 
   def hasVBuckets: Boolean = !vbuckets.isEmpty
 
-  def vbucketIndex(key: String): Int = hash(key).toInt & mask
+  def vbucketIndex(key: String): Short = (hash(key).toInt & mask).toShort
 
   def apply(key: String) = vbuckets(vbucketIndex(key))
 }

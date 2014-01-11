@@ -19,7 +19,7 @@ object BinaryPipeline {
 
   case class Frame(opcode: Byte, key: Option[ByteString], value: Option[ByteString] = None, extras: Option[ByteString] = None, status: Short = 0, cas: Long = 0, opaque: Int = 0) {
 
-    require(extras == None || extras.get.length < 256, "Extras length should be smaller then 256")
+    require(extras == None || extras.get.length < 256, "Extras length should be smaller than 256")
 
     def totalBodyLen = extras.fold(0)(_.length) + key.fold(0)(_.length) + value.fold(0)(_.length)
   }
@@ -118,7 +118,7 @@ class MemcachedFrameStage extends SymmetricPipelineStage[PipelineContext, Binary
       sb.putShort(frame.key.fold(0)(_.length))
       sb.putByte(frame.extras.fold(0)(_.length).toByte)
       sb.putByte(0) // DataType
-      sb.putShort(frame.status) // Reserved
+      sb.putShort(frame.status) // Reserved - vBucket / Status
       sb.putInt(frame.totalBodyLen)
       sb.putInt(frame.opaque)
       sb.putLong(frame.cas)
@@ -204,8 +204,8 @@ class MemcachedMessageStage extends PipelineStage[HasActorContext, Command, Bina
     def commandPipeline = { cmd =>
       log debug s"Encoding command: $cmd"
 
-      def frame(key: String, value: Option[ByteString] = None, extras: Option[ByteString] = None, cas: Long = 0) =
-        new Frame(cmd.opcode, Some(ByteString(key, "utf8")), value, extras, cas = cas, opaque = cmd.opaque)
+      def frame(key: String, value: Option[ByteString] = None, extras: Option[ByteString] = None, cas: Long = 0, vBucket: Short = 0) =
+        new Frame(cmd.opcode, Some(ByteString(key, "utf8")), value, extras, cas = cas, opaque = cmd.opaque, status = vBucket)
 
       def frame2(value: Option[ByteString] = None, extras: Option[ByteString] = None, cas: Long = 0) =
         new Frame(cmd.opcode, None, value, extras, cas = cas, opaque = cmd.opaque)
@@ -217,11 +217,11 @@ class MemcachedMessageStage extends PipelineStage[HasActorContext, Command, Bina
         case _: AuthStep         => frame2()
         case _: NoOp             => frame2()
         case Stat(key)           => key.fold(frame2())(frame(_))
-        case g: GetCommand       => frame(g.key)
-        case d: DeleteCommand    => frame(d.key)
-        case s: StoreCommand     => frame(s.key, Some(s.value), Some(ByteString.newBuilder.putInt(s.flags).putInt(s.expiry).result()), s.cas)
-        case c: CounterCommand   => frame(c.key, extras = Some(ByteString.newBuilder.putLong(c.delta).putLong(c.initial).putInt(c.expiry).result()))
-        case m: ModStringCommand => frame(m.key, Some(ByteString(m.value, "utf8")))
+        case g: GetCommand       => frame(g.key, vBucket = g.vBucket)
+        case d: DeleteCommand    => frame(d.key, vBucket = d.vBucket)
+        case s: StoreCommand     => frame(s.key, Some(s.value), Some(ByteString.newBuilder.putInt(s.flags).putInt(s.expiry).result()), s.cas, vBucket = s.vBucket)
+        case c: CounterCommand   => frame(c.key, extras = Some(ByteString.newBuilder.putLong(c.delta).putLong(c.initial).putInt(c.expiry).result()), vBucket = c.vBucket)
+        case m: ModStringCommand => frame(m.key, Some(ByteString(m.value, "utf8")), vBucket = m.vBucket)
         case f: FlushCommand     => frame2(extras = if (f.expiry > 0) Some(ByteString.newBuilder.putInt(f.expiry).result()) else None)
         case r: AuthReqPlain     => Frame(r.opcode, Some(Plain), Some(ByteString.newBuilder.putByte(0).append(ByteString(r.user, "utf8")).putByte(0).append(ByteString(r.passwd, "utf8")).result()), opaque = r.opaque)
       })

@@ -7,6 +7,7 @@ import play.api.libs.json._
 import play.api.libs.json.JsString
 import scala.Some
 import com.geteit.rcouch.views.Query.BBox
+import scala.reflect.macros.Context
 
 /**
  * The Query class allows custom view-queries to the Couchbase cluster.
@@ -45,23 +46,21 @@ case class Query(key: Option[Key] = None,
   override def toString: String = httpQuery.toString()
 
   def httpQuery: Uri.Query = {
-    def enc(v: Any) = URLEncoder.encode(v.toString, "UTF-8")
-
     Query.buildQuery(
-      ("key", key map enc),
-      ("keys", if (keys.isEmpty) None else Some(keys.map(enc).mkString("[", ",", "]"))),
+      ("key", key),
+      ("keys", if (keys.isEmpty) None else Some(keys.mkString("[", ",", "]"))),
       ("group", group),
       ("group_level", groupLevel),
       ("limit", limit),
       ("skip", skip),
-      ("startkey", startKey map enc),
-      ("endkey", endKey map enc),
-      ("startkey_docid", startKeyDocId map enc),
-      ("endkey_docid", endKeyDocId map enc),
+      ("startkey", startKey),
+      ("endkey", endKey),
+      ("startkey_docid", startKeyDocId),
+      ("endkey_docid", endKeyDocId),
       ("inclusive_end=", inclusiveEnd),
       ("reduce", reduce),
       ("on_error", onError),
-      ("bbox", bBox map enc),
+      ("bbox", bBox),
       ("debug", debug),
       ("stale", stale),
       ("descending", descending)
@@ -89,36 +88,6 @@ object Query {
     case object UpdateAdter extends Stale("update_after")
   }
 
-  case class Key(json: JsValue) {
-    override def toString: String = Json.stringify(json)
-  }
-//  case class BooleanKey(value: Boolean) extends Key {
-//    override val json = value.toString
-//  }
-//  case class NumKey[A: Numeric](value: A) extends Key {
-//    override val json = value.toString
-//  }
-//  case class TupleKey1[A](value: (A))(implicit conv: A => Key) extends Key {
-//    override val json = s"[${conv(_).json}]"
-//  }
-
-  object Key {
-    import scala.language.implicitConversions
-
-    object String {
-      def unapply(key: Key) = key match {
-        case Key(JsString(str)) => Some(str)
-        case _ => None
-      }
-    }
-
-    implicit val fmt = new Format[Key]{
-      def reads(json: JsValue): JsResult[Key] = JsSuccess(Key(json))
-      def writes(o: Key): JsValue = o.json
-    }
-    implicit def value_to_key[A](v: A)(implicit writes: Writes[A]) = Key(writes.writes(v))
-  }
-
   case class BBox(lowerLeftLong: Double, lowerLeftLat: Double, upperRightLong: Double, upperRightLat: Double) {
     override def toString = lowerLeftLong + "," + lowerLeftLat + "," + upperRightLong + "," + upperRightLat
   }
@@ -127,4 +96,50 @@ object Query {
     case (k, Some(v)) => (k, v.toString) +: q
     case _ => q
   })
+}
+
+case class Key(json: JsValue) {
+  override def toString: String = Json.stringify(json)
+}
+
+object Key {
+  import scala.language.implicitConversions
+
+  object String {
+    def unapply(key: Key) = key match {
+      case Key(JsString(str)) => Some(str)
+      case _ => None
+    }
+  }
+
+  object Boolean {
+    def unapply(key: Key) = key match {
+      case Key(JsBoolean(v)) => Some(v)
+      case _ => None
+    }
+  }
+
+  implicit val fmt = new Format[Key]{
+    def reads(json: JsValue): JsResult[Key] = JsSuccess(Key(json))
+    def writes(o: Key): JsValue = o.json
+  }
+  implicit def value_to_key[A](v: A)(implicit writes: Writes[A]) = Key(writes.writes(v))
+
+  /*
+   * Creates key from tuple.
+   *
+   * TODO: reimplement - could probably be better handled as macro, current implementation is not typesafe and very limited
+   */
+  implicit def product_to_key[A <: Product](v: A) = Key(JsArray(
+    v.productIterator.map {
+      case s: String => JsString(s)
+      case c: Char => JsString(c.toString)
+      case b: Boolean => JsBoolean(b)
+      case i: Int => JsNumber(i)
+      case d: Double => JsNumber(d)
+      case f: Float => JsNumber(f)
+      case _: Unit => Json.obj()
+      case elem => throw new IllegalArgumentException(s"Unexpected tuple key item: $elem")
+    }.toSeq
+  ))
 }

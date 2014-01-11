@@ -15,6 +15,13 @@ libraryDependencies ++= Dependencies.all
 
 resolvers ++= Dependencies.resolvers
 
+publishTo := {
+  if (version.value.trim.endsWith("SNAPSHOT"))
+    Some(Resolver.file("snapshots", new File("../mvn-repo/snapshots" )) )
+  else
+    Some(Resolver.file("releases", new File("../mvn-repo/releases" )) )
+}
+
 parallelExecution in Test := false
 
 parallelExecution in IntegrationTest := false

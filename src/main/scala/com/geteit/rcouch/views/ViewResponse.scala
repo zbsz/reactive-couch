@@ -2,7 +2,6 @@ package com.geteit.rcouch.views
 
 import akka.io._
 import spray.http.{HttpCharsets, HttpData}
-import com.geteit.rcouch.views.Query.Key
 import akka.event.Logging
 import akka.actor.ActorSystem
 import play.api.libs.json._

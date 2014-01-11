@@ -29,6 +29,7 @@ object Memcached {
 
   sealed trait KeyCommand extends Command {
     val key: String
+    var vBucket: Short = 0 // TODO: reimplement - mutable state
   }
   sealed trait GetCommand extends KeyCommand
   sealed trait QuietCommand extends Command
@@ -105,7 +106,9 @@ object Memcached {
     val opaque: Int
   }
 
-  case class GetResponse(opcode: Byte, key: Option[String], value: ByteString, flags: Int, cas: Long, status: Short, opaque: Int) extends Response
+  case class GetResponse(opcode: Byte, key: Option[String], value: ByteString, flags: Int, cas: Long, status: Short, opaque: Int) extends Response {
+    override def toString: String = s"GetResponse(key=$key, value=${value.decodeString("utf8")}, status=$status, opaque=$opaque)"
+  }
   case class StoreResponse(opcode: Byte, cas: Long, status: Short, opaque: Int) extends Response
   case class CounterResponse(opcode: Byte, status: Short, value: Long, cas: Long, opaque: Int) extends Response
   case class StatusResponse(opcode: Byte, status: Short, opaque: Int) extends Response
